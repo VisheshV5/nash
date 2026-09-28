@@ -56,7 +56,7 @@ Every size, bucket count and compute estimate below is chosen to fit this box.
 - Deep CFR from scratch is **out of scope**. Spec's `deepcfr/` module becomes `distill/`.
 
 ### D4. Size budget → **store cluster centroids, not lookup tables, for turn and river**
-Card-isomorphic index counts: preflop 169 · flop 1,286,792 · turn 13,960,050 · river 123,156,254. A `uint8` river table alone would be about 123 MB, so turn and river buckets are computed at runtime from centroids.
+Card-isomorphic index counts, with the board treated as one set (hole + board): preflop 169 · flop 1,286,792 · turn 13,960,050 · river 123,156,254. (Keeping the turn and river cards separate would give 55,190,538 and 2,428,287,420; the abstraction doesn't need that distinction.) A `uint8` river table alone would be about 123 MB, so turn and river buckets are computed at runtime from centroids.
 
 | Artifact | Strategy | Est. size |
 |---|---|---|
@@ -66,7 +66,7 @@ Card-isomorphic index counts: preflop 169 · flop 1,286,792 · turn 13,960,050 �
 | Turn / river buckets | centroids + runtime features (≤ 5 ms / ≤ 1 ms) | < 1 MB |
 | Postflop strategy, HU (v1) | tabular `uint8` if it fits, else MLP (ONNX fp16) | 5–60 MB, measured in M4 |
 | Postflop policy net, 6-max *(v1.2)* | MLP, ONNX fp16 | 5–10 MB |
-| Hand evaluator tables | perfect-hash evaluator (not the 130 MB 2+2 table) | < 1 MB |
+| Hand evaluator | bit-arithmetic evaluator, no lookup tables (not the 130 MB 2+2 table) | 0 MB |
 | **Total** | | **≈ 20–40 MB** (target ≤ 50, hard cap 100) |
 
 ### D5. Action abstraction (all YAML)
@@ -124,7 +124,7 @@ v1.2 (6-max):  M10 (6-max blueprint + multiway search) ─► M11 (6-max distill
 
 ### M0 — Foundations (~1–2 days)
 **Deliverables**
-- Repo scaffold (§2), `pyproject.toml` (scikit-build-core, pybind11), CMake, `uv` lockfile, MIT `LICENSE` (+ `NOTICE` for vendored Apache-2.0 code).
+- Repo scaffold (§2), `pyproject.toml` (scikit-build-core, pybind11), CMake, `uv` lockfile, MIT `LICENSE`.
 - Tooling: ruff, mypy (strict on `agent/`, `api/`), clang-format, pre-commit.
 - GitHub Actions CI (public repo → free minutes) on `macos-14` (arm64) and `ubuntu-latest`: build extension, pytest, lint, with ccache.
 - Config system: YAML → pydantic (`configs/hu_default.yaml`; `6max_default.yaml` comes in v1.2).
@@ -137,7 +137,7 @@ v1.2 (6-max):  M10 (6-max blueprint + multiway search) ─► M11 (6-max distill
 Built for 2–6 players even though v1 trains only heads-up.
 
 **Deliverables**
-- C++: cards, deck, perfect-hash 7-card evaluator (vendored from HenryRLee/PokerHandEvaluator, Apache-2.0, or a port), Waugh-style hand isomorphism indexer for all streets.
+- C++: cards, deck, 7-card evaluator (own bit-arithmetic implementation, no tables, nothing vendored), suit-isomorphism hand indexer for all streets (any round structure).  ✅ *done 2026-09-28: 62M evals/s on one M2 Pro core*
 - C++ `GameState` for 2–6 seats: blinds, legal actions (min-raise rule; incomplete all-in raises don't reopen action), transitions, street advance, **side pots**, multiway showdown with split pots and odd chips.
 - Python bindings and a pydantic `GameStateIn` matching Spec §4, with semantic validation: pot equals contributions, stacks are consistent with history, turn order is legal, no duplicate cards, board length matches the street, seat labels are valid for N. Errors are structured.
 

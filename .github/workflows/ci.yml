@@ -38,3 +38,18 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run pytest
+
+  cpp-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -S . -B build/cpp-tests -DREGRET_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/cpp-tests --parallel
+      - name: Exhaustive evaluator + indexer checks
+        run: ./build/cpp-tests/regret_tests

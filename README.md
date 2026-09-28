@@ -3,7 +3,7 @@
 An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time search, small enough
 (≤ 100 MB) and fast enough (≤ 1 s per decision on a laptop CPU) to drop into your own code.
 
-> **Status: pre-alpha.** Foundations (M0) only; nothing plays poker yet.
+> **Status: pre-alpha.** Foundations, cards, hand evaluator and hand indexer are done; nothing plays poker yet.
 > See [ROADMAP.md](ROADMAP.md) for the plan and [SPEC.md](SPEC.md) for the requirements.
 
 ## Development
@@ -20,6 +20,16 @@ uv run pre-commit install
 ```
 
 Editing files under `cpp/` triggers a rebuild on the next `uv sync` or `uv run`.
+
+Exhaustive C++ checks (every 5- and 7-card hand, every flop deal, index round trips) plus an
+evaluator benchmark live in a separate binary:
+
+```bash
+uv run cmake -S . -B build/cpp-tests -G Ninja -DREGRET_BUILD_TESTS=ON
+uv run cmake --build build/cpp-tests
+./build/cpp-tests/regret_tests          # ~8 s
+./build/cpp-tests/regret_tests --slow   # + every turn deal, every turn/river index (~3 min)
+```
 
 ## Layout
 
