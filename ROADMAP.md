@@ -1,15 +1,28 @@
 # Regret — Roadmap
 
-Status: **v0.3** (2026-09-27). Built from [`SPEC.md`](SPEC.md). All earlier open questions are resolved (§5). One new blocker, disk space, is listed in §4.
+Status: **v0.4** (2026-09-28). Built from [`SPEC.md`](SPEC.md). All earlier open questions are resolved (§5). One new blocker, disk space, is listed in §4.
 
 ## Release scope
 
 | Release | Scope | Calendar estimate |
 |---|---|---|
-| **v1: heads-up** | HU blueprint + real-time search + agent library + REST API | **~3–4 weeks** |
-| v1.1: 6-max | 6-max blueprint (covers 3–6 players), multiway search, distillation if needed | ~2 more weeks |
+| **v1: heads-up** | HU blueprint + real-time search + library + REST API, prebuilt wheels + auto-downloaded bundles, Slumbot benchmark | **~4 weeks** |
+| v1.1: demo | Web poker table: play against it or watch bot vs. bot, with a panel showing the numbers behind each decision | ~1 week |
+| v1.2: 6-max | 6-max blueprint (covers 3–6 players), multiway search, distillation | ~2 more weeks |
+| Stretch | Learned best response (a stronger exploitability estimate than LBR) | ~1 week + compute |
 
-**The engine, state, schema and abstractions stay 2–6-player from day one** (Spec §3), so v1.1 adds a training config, a blueprint and eval. It does not rewrite v1. Design notes for 6-max are kept below and marked *(v1.1)*.
+**The engine, state, schema and abstractions stay 2–6-player from day one** (Spec §3), so v1.2 adds a training config, a blueprint and eval. It does not rewrite v1. Design notes for 6-max are kept below and marked *(v1.2)*.
+
+## What makes Regret different
+
+Open-source poker AI today is mostly research frameworks, and commercial solvers are heavy desktop apps. Regret's niche is **the poker AI you can drop into your own code in one minute**:
+
+- `pip install regret-poker` with **prebuilt wheels** for macOS-arm64 and Linux x86_64. No compiler needed.
+- `RegretAgent.load("hu-100bb")` **downloads the bundle automatically** from GitHub Releases on first use and caches it.
+- One JSON format in and out, the same for the library and the REST API, and nothing to configure for the default.
+- Published, measured footprint: bundle MB, load time, and p50/p95 decision latency on a laptop.
+- **Honest strength numbers:** abstract-game exploitability, LBR, head-to-head vs. baselines, and **vs. Slumbot**, all with 95% CIs.
+- **Every decision can explain itself** with numbers the agent actually computed (`explain=True`), and the demo table (v1.1) shows them next to each move.
 
 ## Target machine (the only machine; no cloud, no GPU)
 
@@ -32,7 +45,7 @@ Every size, bucket count and compute estimate below is chosen to fit this box.
 - Python orchestrates: config, checkpoints, logging, eval, API.
 - Build: `scikit-build-core` + CMake + pybind11. `uv sync` builds the extension.
 
-### D2. Blueprints → **two: `hu` (v1) and `6max` (v1.1)**
+### D2. Blueprints → **two: `hu` (v1) and `6max` (v1.2)**
 - **Tables of 3–6 players use the 6-max blueprint through "virtual folds."** A 4-handed table is exactly the 6-max game after UTG and HJ fold: same blinds, same order, same stacks. CFR trains those subtrees directly because early-seat folds are the most common preflop action.
 - **Heads-up is separate.** In HU the SB is the button and acts *last* postflop. In "6-max after 4 folds" the SB acts *first* postflop.
 
@@ -47,12 +60,12 @@ Card-isomorphic index counts: preflop 169 · flop 1,286,792 · turn 13,960,050 �
 
 | Artifact | Strategy | Est. size |
 |---|---|---|
-| Preflop strategy, 6-max *(v1.1)* | tabular `uint8`, reachable sequences only, raise cap 4 | 10–20 MB |
+| Preflop strategy, 6-max *(v1.2)* | tabular `uint8`, reachable sequences only, raise cap 4 | 10–20 MB |
 | Preflop strategy, HU | tabular `uint8` | ≤ 1 MB |
 | Flop buckets | `uint8` table over isomorphic index | 1.3 MB |
 | Turn / river buckets | centroids + runtime features (≤ 5 ms / ≤ 1 ms) | < 1 MB |
 | Postflop strategy, HU (v1) | tabular `uint8` if it fits, else MLP (ONNX fp16) | 5–60 MB, measured in M4 |
-| Postflop policy net, 6-max *(v1.1)* | MLP, ONNX fp16 | 5–10 MB |
+| Postflop policy net, 6-max *(v1.2)* | MLP, ONNX fp16 | 5–10 MB |
 | Hand evaluator tables | perfect-hash evaluator (not the 130 MB 2+2 table) | < 1 MB |
 | **Total** | | **≈ 20–40 MB** (target ≤ 50, hard cap 100) |
 
@@ -62,14 +75,14 @@ Card-isomorphic index counts: preflop 169 · flop 1,286,792 · turn 13,960,050 �
 | Preflop, open | 2.0–2.5bb (by position), all-in |
 | Preflop, 3-bet / 4-bet | one size each (≈3x IP / 4x OOP, ≈2.3x), all-in; raise cap 4 |
 | Postflop, 2 active (HU blueprint) | 33%, 75%, 125% pot, all-in; raises: 75% pot / all-in |
-| Postflop, 2 active (inside 6-max blueprint) *(v1.1)* | 50%, pot, all-in; raises: pot / all-in |
+| Postflop, 2 active (inside 6-max blueprint) *(v1.2)* | 50%, pot, all-in; raises: pot / all-in |
 | Postflop, 3 active | 50%, pot, all-in; raises: all-in |
 | Postflop, 4+ active | pot, all-in |
 
 Real-time search uses a **richer** action set than the blueprint and inserts the opponent's actual off-tree bet, so off-tree bets get solved rather than only translated.
 
 ### D6. Card abstraction: sized for a 10 GB RAM budget **[provisional, fixed by the memory planner in M3]**
-| Street | HU (v1) | 6-max *(v1.1)* | Method |
+| Street | HU (v1) | 6-max *(v1.2)* | Method |
 |---|---|---|---|
 | Preflop | 169 | 169 | lossless |
 | Flop | 200 | 96 | potential-aware: EMD k-means over turn-bucket histograms |
@@ -84,7 +97,7 @@ Real-time search uses a **richer** action set than the blueprint and inserts the
 - The solver is **anytime**. Its default wall-clock budget is 800 ms on 6 threads (the P-cores). It returns the best strategy so far. If it hasn't reached a minimum iteration count, it returns the blueprint with `source: "blueprint"`. The hard cap is enforced by the agent, not only the solver.
 - Subgames are depth-limited to the end of the current street. Leaves use 4 continuation strategies per player. Opponent ranges are bucketed.
 - **v1 (HU):** search runs on every flop, turn and river decision, and preflop when off-tree.
-- **Routing policy (v1.1, configurable):** search runs when ≤ 3 players are in the pot, or when the state is off-tree. With 4+ players, the agent uses blueprint + translation. M9 measures whether 4-way search fits the budget.
+- **Routing policy (v1.2, configurable):** search runs when ≤ 3 players are in the pot, or when the state is off-tree. With 4+ players, the agent uses blueprint + translation. M10 measures whether 4-way search fits the budget.
 - Blueprint-only decisions: ≤ 20 ms.
 
 ### D8. Training on a laptop
@@ -104,7 +117,9 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 (HU blueprint) ─► M5 (HU search) 
                           │                         │
                           └──► M6 (agent + API) ◄───┘   thin version right after M4
 
-v1.1 (6-max):  M9 (6-max blueprint + multiway search) ─► M10 (6-max distill + v1.1 release)
+v1.1 (demo):   M9 (web table + decision panel)
+
+v1.2 (6-max):  M10 (6-max blueprint + multiway search) ─► M11 (6-max distill + v1.2 release)
 ```
 
 ### M0 — Foundations (~1–2 days)
@@ -112,7 +127,7 @@ v1.1 (6-max):  M9 (6-max blueprint + multiway search) ─► M10 (6-max distill 
 - Repo scaffold (§2), `pyproject.toml` (scikit-build-core, pybind11), CMake, `uv` lockfile, MIT `LICENSE` (+ `NOTICE` for vendored Apache-2.0 code).
 - Tooling: ruff, mypy (strict on `agent/`, `api/`), clang-format, pre-commit.
 - GitHub Actions CI (public repo → free minutes) on `macos-14` (arm64) and `ubuntu-latest`: build extension, pytest, lint, with ccache.
-- Config system: YAML → pydantic (`configs/hu_default.yaml`; `6max_default.yaml` comes in v1.1).
+- Config system: YAML → pydantic (`configs/hu_default.yaml`; `6max_default.yaml` comes in v1.2).
 - Seeding utility: one master seed → per-component NumPy `Generator` and C++ PCG streams.
 
 **Acceptance:** CI is green on both runners. `uv sync && pytest` passes locally, and a trivial C++ function is callable from Python.
@@ -154,7 +169,7 @@ Built for 2–6 players even though v1 trains only heads-up.
 - Features (C++/Numba): river OCHS, turn equity histograms, flop potential-aware histograms. **Disk-light design:** river and turn centroids are fit on a *sample* of isomorphic states (≈ 5–10M), not the full 123M. Features are float16 and streamed to disk. Flop features are computed in full (1.3M).
 - Clustering: k-means (L2) and EMD k-means (fast 1-D EMD for histograms), deterministic seeding, and a bucket-quality report.
 - Runtime bucketers: flop table lookup, turn/river centroid assignment, and a fine-grained mode for search (D6).
-- Action abstraction per D5 (conditioned on active-player count, so v1.1 only needs config). Off-tree translation: randomized pseudo-harmonic mapping (seedable).
+- Action abstraction per D5 (conditioned on active-player count, so v1.2 only needs config). Off-tree translation: randomized pseudo-harmonic mapping (seedable).
 - `build_abstraction.py` → versioned `abstraction/` artifact. **`plan_memory.py`** (D6).
 
 **Acceptance**
@@ -198,6 +213,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 **Deliverables**
 - `RegretAgent.load(path)` / `.act(state)`. Routes to blueprint, translation or solver. Returns the Spec §4 output.
 - `recommended` is **sampled** from the strategy (seeded in deterministic mode), with optional `mode="argmax"`.
+- `act(state, explain=True)` adds an `explain` object containing **only values the agent computed**: hero equity vs. the estimated range, hand bucket, a compact opponent-range summary (top hand classes + weights), per-action EV from the subgame solve (when `source` is `subgame_solve`), solver iterations, and the translation applied to an off-tree bet. No generated prose in the library.
 - In v1, inputs with `num_players > 2` return a clear `UnsupportedTableSize` error. Schema validation already handles 2–6.
 - FastAPI: `POST /act`, `GET /health`, `GET /info` (bundle version, config, abstraction hash), structured errors, request logging, Dockerfile.
 - `examples/library.py`, `examples/rest.py` (≤ 10 lines each), and a CLI demo that plays a heads-up hand vs. baselines.
@@ -205,27 +221,55 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 **Acceptance:** both examples run from a clean install. API validation tests pass. OpenAPI docs are generated.
 **Depends on:** M4 (thin), M5 (full routing).
 
-### M7 — Bundle (+ distillation only if needed) (~1–2 days; +3–4 days if distilling)
+### M7 — Bundle, packaging, distribution (+ distillation only if needed) (~3–4 days; +3–4 days if distilling)
 **Deliverables**
+- **Prebuilt wheels** with `cibuildwheel` in a GitHub Actions release workflow (macOS-arm64, Linux x86_64 manylinux; Python 3.11–3.13), published to PyPI as `regret-poker` (import name `regret`).
+- **Bundle registry:** bundles attached to GitHub Releases, a small `registry.json` (name → URL, sha256, size, version), `RegretAgent.load(name_or_path)` downloads, verifies the checksum and caches in `~/.cache/regret`. Offline use works with a local path.
+- Lean dependencies: the core install needs only NumPy (+ ONNX Runtime if distilled). FastAPI, PyTorch and training tools are extras (`[api]`, `[train]`).
 - Versioned bundle: `manifest.json` (version, config hash, sizes, iterations), abstraction, preflop tables, postflop strategy.
 - **If the tabular HU bundle is > 100 MB (measured in M4):** distill postflop into an MLP. Inputs: bucket/equity features, pot and stack ratios, encoded action history. Loss is KL weighted by reach probability. Trained on CPU, or MPS if faster. ONNX fp16, ONNX Runtime in the agent.
 
 **Acceptance**
 - Bundle ≤ 100 MB (target ≤ 50). Load time ≤ 2 s.
+- On a fresh macOS and a fresh Linux machine (CI), `pip install regret-poker` + the 10-line library example work with no compiler and no manual download.
 - If distilled: distilled vs. tabular head-to-head loss ≤ 10 mbb/hand (CI reported).
 
 **Depends on:** M4.
 
-### M8 — Ablations, docs, v1 release (~2–3 days)
+### M8 — Slumbot benchmark, ablations, docs, v1 release (~4–5 days, +2–4 days compute)
+- **Slumbot match:** a client for Slumbot's public heads-up API. Before building it, **verify** Slumbot's current API, terms of use, stack depth and blinds (believed to be 200bb deep). If it's deeper than 100bb, train a matching `hu-200bb` bundle with the same pipeline (deeper stacks mean a bigger tree, so the memory planner re-checks the budget). Play ≥ 10k hands (as many as the API allows), rate-limited and politely, and report mbb/hand ± 95% CI whatever the result. Slumbot doesn't expose its strategy, so AIVAT can only use our own side; the report states that.
+- Only bots with public APIs or open-source code. Never bots on real-money sites (Spec non-goal).
 - Ablations (HU): blueprint vs. +search, bucket count vs. strength vs. size (3 points per street), distilled vs. tabular if M7 distilled.
 - README (quickstart, API, architecture diagram, "training on your laptop"), `docs/compute.md` with the measured time per phase on the M2 Pro.
-- Spec §9 verification for heads-up → `RESULTS.md`. Tag `v1.0.0`.
+- Spec §9 verification for heads-up → `RESULTS.md` (including Slumbot and the footprint numbers). Tag `v1.0.0`, publish wheels and bundles.
 
 ---
 
-### v1.1 — 6-max
+### v1.1 — Demo table
 
-### M9 — 6-max blueprint + multiway search (~1–1.5 weeks, +5–10 days compute)
+### M9 — Web poker table with decision panel (~5–7 days)
+The UI is **just another client of the REST API**, so it doubles as proof that embedding is easy.
+
+**Deliverables**
+- `web/`: Vite + TypeScript + Preact single-page app, built to static files and served by the FastAPI app (`regret serve --demo`). No other backend.
+- **Play mode:** you vs. Regret, heads-up, with configurable stack depth, a seeded deck option, and a hand history download.
+- **Watch mode:** Regret vs. a baseline bot, or vs. an older checkpoint, with playback speed controls and a running mbb/hand chart.
+- **Decision panel** next to each move, built only from the `explain` output: action probabilities as a bar chart, equity, an estimated-range grid (13×13), per-action EVs, blueprint vs. solver, solver iterations, and latency.
+- Optional one-line text summary produced by a **deterministic template** from those numbers (e.g. "Calls 55%: 38% equity vs. a range weighted toward top pairs; raising has lower EV"). No LLM needed, and it can never contradict the numbers.
+- Deployable as a single Docker image. Hosting publicly is optional and later.
+
+**Acceptance**
+- A full hand can be played in the browser against the v1 bundle on the M2 Pro with ≤ 1.5 s bot response.
+- Every number in the panel matches the API response for the same state (tested).
+- Watch mode runs 1,000 hands unattended without errors.
+
+**Depends on:** v1 (M6 `explain`, M7 bundle).
+
+---
+
+### v1.2 — 6-max
+
+### M10 — 6-max blueprint + multiway search (~1–1.5 weeks, +5–10 days compute)
 **Deliverables**
 - `configs/6max_default.yaml` (D5/D6 coarse settings). Memory plan within 10 GB. Training run with the M2 harness. **The laptop is heavily loaded for the whole run.**
 - Virtual-fold mapping for 3–5-handed inputs (D2). Lift the `num_players > 2` restriction in the agent.
@@ -239,20 +283,26 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 
 **Depends on:** v1.
 
-### M10 — 6-max distillation + v1.1 release (~3–5 days)
+### M11 — 6-max distillation + v1.2 release (~3–5 days)
 - Distill the 6-max postflop into an MLP (needed: the 6-max tabular postflop won't fit the budget). Bundle holds both blueprints and stays ≤ 100 MB.
-- 6-max ablations, docs, and Spec §9 verification for 6-max. Tag `v1.1.0`.
+- 6-max ablations, docs, and Spec §9 verification for 6-max. Watch mode in the demo gains 6-max tables. Tag `v1.2.0`.
+
+---
+
+### Stretch — Learned best response (~1 week + 2–4 days compute)
+- Train an exploiter against the frozen HU agent (tabular MCCFR best-response over the abstract game or an RL agent in the full game) and report how much it wins. This is a stronger lower bound on exploitability than LBR, and it's the most credible exploitability number we can produce on one machine.
 
 ### Timeline summary
 | | Calendar | Compute on M2 Pro (est.) |
 |---|---|---|
 | M0–M3 (foundations, engine, CFR, abstraction) | ~2 weeks | ~0.5 day |
 | M4–M5 (HU blueprint + search) | ~1.5 weeks | 2–4 days, overlapping M5 |
-| M6–M8 (agent, API, bundle, release) | ~0.5–1 week | — |
-| **v1 (heads-up) total** | **~3–4 weeks** | |
-| M9–M10 (v1.1, 6-max) | ~2 weeks | 5–10 days |
+| M6–M8 (agent, API, packaging, Slumbot, release) | ~1.5 weeks | 2–4 days (200bb bundle, if needed) |
+| **v1 (heads-up) total** | **~4 weeks** | |
+| M9 (v1.1, demo table) | ~1 week | — |
+| M10–M11 (v1.2, 6-max) | ~2 weeks | 5–10 days |
 
-Out of scope for v1 and v1.1 (Spec "later"): variable per-player stacks, 9-max, opponent modeling, gRPC.
+Out of scope for v1–v1.2 (Spec "later"): variable per-player stacks, 9-max, opponent modeling, gRPC.
 
 ---
 
@@ -266,7 +316,7 @@ nash/
 ├── CMakeLists.txt
 ├── LICENSE / NOTICE
 ├── SPEC.md / ROADMAP.md
-├── configs/                  # hu_default.yaml (v1), 6max_default.yaml (v1.1), eval_*.yaml
+├── configs/                  # hu_default.yaml (v1), 6max_default.yaml (v1.2), eval_*.yaml
 ├── cpp/
 │   ├── include/regret/
 │   ├── src/
@@ -290,6 +340,7 @@ nash/
 │   └── utils/                # config, seeding, logging, atomic io
 ├── scripts/                  # train.py, status.py, build_abstraction.py, plan_memory.py, export.py, run_background.sh
 ├── tests/                    # pytest: unit, differential vs PokerKit, API
+├── web/                      # demo table (v1.1): Vite + TypeScript + Preact
 ├── examples/
 ├── docs/
 └── .github/workflows/ci.yml
@@ -314,13 +365,15 @@ Then M2 (toy CFR + harness) and M3 (abstraction) can run in parallel.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Only ~12 GB of free disk** | Blocks M3 (feature caches) and M4/M9 (checkpoints of several GB each) | **Free ≥ 40 GB before M3** (toolchain + PyTorch ≈ 3 GB, features ≤ 8 GB, 2 compressed checkpoints ≤ 15 GB, bundles/logs). Checkpoint dir can live on an external SSD |
-| 16 GB RAM caps blueprint granularity, 6-max most of all | Weaker 6-max blueprint (v1.1) | Coarse D6 + lazy allocation + snapshot postflop; memory planner; real-time search with fine buckets does the heavy lifting |
-| 6-max search can't fit 1 s at 4+ players (v1.1) | Search only helps ≤ 3-way pots | D7 routing policy; anytime solver; measured in M9 |
+| Slumbot API changes, rate limits, or terms forbid automated play | No external benchmark | Verify first in M8; fall back to open-source bots and publish our baselines |
+| Laptop-trained blueprint loses to Slumbot | Weaker headline | Report honestly with CIs; the search ablation and footprint numbers still stand |
+| **Only ~12 GB of free disk** | Blocks M3 (feature caches) and M4/M10 (checkpoints of several GB each) | **Free ≥ 40 GB before M3** (toolchain + PyTorch ≈ 3 GB, features ≤ 8 GB, 2 compressed checkpoints ≤ 15 GB, bundles/logs). Checkpoint dir can live on an external SSD |
+| 16 GB RAM caps blueprint granularity, 6-max most of all | Weaker 6-max blueprint (v1.2) | Coarse D6 + lazy allocation + snapshot postflop; memory planner; real-time search with fine buckets does the heavy lifting |
+| 6-max search can't fit 1 s at 4+ players (v1.2) | Search only helps ≤ 3-way pots | D7 routing policy; anytime solver; measured in M10 |
 | Multi-day laptop training (sleep, heat, updates) | Lost runs | caffeinate + tmux, checkpoints every ≤ 15 min, bit-exact resume, pause macOS auto-updates during runs |
 | Engine rule bugs (side pots, reopen rules) | Poisons all training | PokerKit differential fuzzing before any training |
 | Bit-identical resume with multithreading | Spec §6.1 claim | Guaranteed in deterministic mode (fixed threads, deterministic reduction); documented |
-| Distilled net loses strength | Size vs. strength | Keep flop tabular if it fits; bigger net; M8/M10 ablations |
+| Distilled net loses strength | Size vs. strength | Keep flop tabular if it fits; bigger net; M8/M11 ablations |
 
 ---
 
@@ -336,4 +389,5 @@ Then M2 (toy CFR + harness) and M3 (abstraction) can run in parallel.
 | 6 | `recommended` | Sampled from strategy (seedable), `mode="argmax"` optional |
 | 7 | Labels | Seats named back from the button: HU `BTN`(=SB), `BB`; 3 `BTN,SB,BB`; 4 adds `CO`; 5 adds `HJ`; 6 adds `UTG`. Actions `fold`, `check`, `call`, `bet_0.75pot`, `raise_2.5x` (multiple of the facing bet), `all_in` |
 | 8 | Repo | Fresh repo `VisheshV5/nash` at `~/nash`, no code shared with `~/pokerai`. MIT license. Package name `regret` |
-| 9 | Release scope | **v1 = heads-up only** (~3–4 weeks). 6-max moves to v1.1. Engine and abstractions stay 2–6-player |
+| 9 | Release scope | **v1 = heads-up only** (~3–4 weeks). 6-max moves to v1.2. Engine and abstractions stay 2–6-player |
+| 10 | Reviewer feedback (2026-09-28) | Adopted: embeddability as the headline (wheels, auto-download bundles, `explain`); Slumbot benchmark in v1; demo table as v1.1, before 6-max, which becomes v1.2; learned best response as stretch |

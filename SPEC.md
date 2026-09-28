@@ -13,7 +13,7 @@ A No-Limit Texas Hold'em agent that other systems embed and query for near-optim
 - Measurable strength (exploitability, win rate vs. baselines).
 
 ## 3. Scope
-- *(Refined 2026-09-27: v1 ships heads-up only; 6-max ships as v1.1. The engine stays 2–6-player from day one. See ROADMAP "Release scope".)*
+- *(Refined 2026-09-27: v1 ships heads-up only; a demo table ships as v1.1 and 6-max as v1.2. The engine stays 2–6-player from day one. See ROADMAP "Release scope".)*
 - **v1: 2–6 player NLHE (heads-up through 6-max)**, fixed starting stack (e.g., 100bb, configurable), fixed blinds. Handle any number of players still in the hand on every street, including side pots and all-ins.
 - Build and validate heads-up first internally as a checkpoint, but the architecture must be multiway from day one (no 2-player assumptions in the engine, state, or abstractions).
 - **Later / stretch:** variable stack depths per player, 9-max, opponent modeling / exploitative adjustments.
@@ -23,7 +23,7 @@ A No-Limit Texas Hold'em agent that other systems embed and query for near-optim
 - The game tree grows fast with more players, so action abstraction must be coarser in multiway pots (fewer bet sizes when 3+ players are in the hand).
 
 ### Non-goals
-- No UI beyond a minimal CLI and demo script.
+- ~~No UI beyond a minimal CLI and demo script.~~ *(Refined 2026-09-28: a demo web table ships in v1.1; see ROADMAP M9.)*
 - No integration with real-money poker sites.
 
 ## 4. Interface
