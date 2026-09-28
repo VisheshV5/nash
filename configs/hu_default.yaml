@@ -1,0 +1,45 @@
+# Heads-up, 100bb. Defaults from ROADMAP.md D5 (actions), D6 (buckets), D7 (search), D8 (training).
+# Bucket counts are provisional until the M3 memory planner fixes them.
+name: hu-100bb
+
+table:
+  num_players: 2
+  starting_stack_bb: 100
+  small_blind_bb: 0.5
+
+actions:
+  preflop:
+    open_bb: [2.5]
+    reraise_x_ip: [3.0]
+    reraise_x_oop: [4.0]
+    four_bet_x: [2.3]
+    allow_all_in: true
+    max_raises: 4
+  postflop:
+    2:
+      bet_pot: [0.33, 0.75, 1.25]
+      raise_pot: [0.75]
+      allow_all_in: true
+
+cards:
+  flop_buckets: 200
+  turn_buckets: 200
+  river_buckets: 200
+  river_opponent_clusters: 8
+  feature_sample_size: 10000000
+
+training:
+  seed: 0
+  deterministic: false
+  threads: 6            # M2 Pro performance cores
+  memory_budget_gb: 10  # of 16 GB
+  checkpoint_dir: runs/hu-100bb/checkpoints
+  checkpoint_every_minutes: 15
+  keep_last_checkpoints: 2
+
+search:
+  enabled: true
+  time_budget_ms: 800
+  hard_cap_ms: 1500
+  threads: 6
+  continuation_strategies: 4

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Native build
+build/
+dist/
+*.so
+compile_commands.json
+
+# Training / eval outputs (large; never commit)
+runs/
+artifacts/
+bundles/
+*.ckpt
+*.zst
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,77 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "regret-poker"
+version = "0.0.1"
+description = "Embeddable No-Limit Hold'em agent: MCCFR blueprint + real-time search, small and fast on a laptop CPU."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Vishesh" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Games/Entertainment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.26",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.urls]
+Repository = "https://github.com/VisheshV5/nash"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-PyYAML>=6.0",
+    "pre-commit>=3.7",
+    "clang-format>=18",
+]
+
+# ---------------------------------------------------------------- build
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/regret"]
+cmake.build-type = "Release"
+
+[tool.uv]
+# Rebuild the C++ extension whenever native sources or build files change.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "cpp/**/*.hpp" },
+    { file = "cpp/**/*.cpp" },
+]
+
+# ---------------------------------------------------------------- lint / type
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "NPY", "PT"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/regret", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
