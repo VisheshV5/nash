@@ -3,7 +3,7 @@
 An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time search, small enough
 (≤ 100 MB) and fast enough (≤ 1 s per decision on a laptop CPU) to drop into your own code.
 
-> **Status: pre-alpha.** Foundations, cards, hand evaluator and hand indexer are done; nothing plays poker yet.
+> **Status: pre-alpha.** The rules engine is done (cards, evaluator, hand indexer, 2-6 player betting with side pots, GameState validation); no strategy yet.
 > See [ROADMAP.md](ROADMAP.md) for the plan and [SPEC.md](SPEC.md) for the requirements.
 
 ## Development

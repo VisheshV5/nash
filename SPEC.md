@@ -36,14 +36,14 @@ A No-Limit Texas Hold'em agent that other systems embed and query for near-optim
   "hero_cards": ["As", "Kd"],
   "board": ["Qh", "Jc", "2s"],
   "street": "flop",
-  "pot": 20.5,
+  "pot": 14.0,
   "players": [
     {"seat": "UTG", "stack": 100.0, "status": "folded"},
-    {"seat": "HJ",  "stack": 94.0,  "status": "active"},
+    {"seat": "HJ",  "stack": 91.5,  "status": "active"},
     {"seat": "CO",  "stack": 100.0, "status": "folded"},
-    {"seat": "BTN", "stack": 94.0,  "status": "active"},
-    {"seat": "SB",  "stack": 100.0, "status": "folded"},
-    {"seat": "BB",  "stack": 94.0,  "status": "active"}
+    {"seat": "BTN", "stack": 97.5,  "status": "active"},
+    {"seat": "SB",  "stack": 99.5,  "status": "folded"},
+    {"seat": "BB",  "stack": 97.5,  "status": "active"}
   ],
   "action_history": {
     "preflop": [["UTG", "fold"], ["HJ", "raise", 2.5], ["CO", "fold"], ["BTN", "call", 2.5], ["SB", "fold"], ["BB", "call", 2.5]],
@@ -54,6 +54,13 @@ A No-Limit Texas Hold'em agent that other systems embed and query for near-optim
 }
 ```
 Bet amounts are in big blinds. `status` is `active`, `folded`, or `all_in`. Validate the input and return clear errors for illegal states. The engine must compute side pots correctly.
+
+*(Refined 2026-09-28, implemented in `regret.engine.state`.)* The original example had pot 20.5 and stacks of 94, which don't match its own history (the history gives a pot of 14.0), so it was corrected to the numbers above. Conventions:
+- `pot` counts every chip put in this hand, including the current street's bets. `stack` is what's left behind.
+- Amounts for `bet`, `raise`, `call` and `all_in` are the player's **total bet on that street after the action** ("raise to"). `call` may omit it; the others may not.
+- Blinds are implicit. Seats by table size: 2 `BTN`(alias `SB`), `BB` · 3 `SB, BB, BTN` · 4 adds `CO` · 5 adds `HJ` · 6 adds `UTG`.
+- Amounts are in the unit of `big_blind` (optional `small_blind`, default half), at 0.01bb precision.
+- Starting stacks are inferred (stack + chips put in), then the whole history is replayed and must match the reported pot, stacks, statuses, street, board and `to_act`, which must be the hero.
 
 ### Output
 ```json

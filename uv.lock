@@ -666,6 +666,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pokerkit"
+version = "0.7.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/46/8c962cfb9755d5637dfd780dcaef85df45f87057d688f209443e0dd2c8f5/pokerkit-0.7.6.tar.gz", hash = "sha256:f68e4fcc3ef8c19150c2540b69f39d24e62aa1e3ce2fe885440d0707ed62b15e", size = 110054, upload-time = "2026-09-17T22:21:36.668Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/64/a74a41aed089328a66517dff1914d9601f5405774524b2b2d9dae0193b6b/pokerkit-0.7.6-py3-none-any.whl", hash = "sha256:57a77117ed702586f661649ec02755003ecef31744e65c2b9c234cb53539c338", size = 114226, upload-time = "2026-09-17T22:21:35.342Z" },
+]
+
+[[package]]
 name = "pre-commit"
 version = "4.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -913,6 +922,7 @@ dev = [
     { name = "cmake" },
     { name = "mypy" },
     { name = "ninja" },
+    { name = "pokerkit" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
@@ -935,6 +945,7 @@ dev = [
     { name = "cmake", specifier = ">=3.20" },
     { name = "mypy", specifier = ">=1.10" },
     { name = "ninja", specifier = ">=1.11" },
+    { name = "pokerkit", specifier = ">=0.7.6" },
     { name = "pre-commit", specifier = ">=3.7" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.6" },

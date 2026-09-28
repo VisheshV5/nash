@@ -24,6 +24,7 @@ endif()
 add_library(regret_native STATIC
   cpp/src/cards/evaluator.cpp
   cpp/src/cards/isomorphism.cpp
+  cpp/src/engine/engine.cpp
 )
 target_include_directories(regret_native PUBLIC cpp/include)
 set_target_properties(regret_native PROPERTIES POSITION_INDEPENDENT_CODE ON)

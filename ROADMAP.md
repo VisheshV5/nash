@@ -122,7 +122,7 @@ v1.1 (demo):   M9 (web table + decision panel)
 v1.2 (6-max):  M10 (6-max blueprint + multiway search) ─► M11 (6-max distill + v1.2 release)
 ```
 
-### M0 — Foundations (~1–2 days)
+### M0 — Foundations (~1–2 days)  ✅ *done 2026-09-28*
 **Deliverables**
 - Repo scaffold (§2), `pyproject.toml` (scikit-build-core, pybind11), CMake, `uv` lockfile, MIT `LICENSE`.
 - Tooling: ruff, mypy (strict on `agent/`, `api/`), clang-format, pre-commit.
@@ -133,7 +133,7 @@ v1.2 (6-max):  M10 (6-max blueprint + multiway search) ─► M11 (6-max distill
 **Acceptance:** CI is green on both runners. `uv sync && pytest` passes locally, and a trivial C++ function is callable from Python.
 **Depends on:** nothing.
 
-### M1 — N-player game engine + hand evaluation (~4–5 days)
+### M1 — N-player game engine + hand evaluation (~4–5 days)  ✅ *done 2026-09-28*
 Built for 2–6 players even though v1 trains only heads-up.
 
 **Deliverables**

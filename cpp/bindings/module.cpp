@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "regret/cards.hpp"
+#include "regret/engine.hpp"
 #include "regret/evaluator.hpp"
 #include "regret/isomorphism.hpp"
 #include "regret/version.hpp"
@@ -173,4 +174,126 @@ PYBIND11_MODULE(_core, m) {
             return out;
           },
           py::arg("indices"), "Canonical representatives, as an (n, total_cards) uint8 array.");
+
+  // ---- engine
+  py::enum_<regret::Street>(m, "Street")
+      .value("PREFLOP", regret::Street::kPreflop)
+      .value("FLOP", regret::Street::kFlop)
+      .value("TURN", regret::Street::kTurn)
+      .value("RIVER", regret::Street::kRiver);
+  py::enum_<regret::PlayerStatus>(m, "PlayerStatus")
+      .value("ACTIVE", regret::PlayerStatus::kActive)
+      .value("FOLDED", regret::PlayerStatus::kFolded)
+      .value("ALL_IN", regret::PlayerStatus::kAllIn);
+  py::enum_<regret::ActionType>(m, "ActionType")
+      .value("FOLD", regret::ActionType::kFold)
+      .value("CHECK_CALL", regret::ActionType::kCheckCall)
+      .value("BET_RAISE", regret::ActionType::kBetRaise);
+
+  py::class_<regret::Action>(m, "Action")
+      .def(py::init<regret::ActionType, regret::Chips>(), py::arg("type"), py::arg("amount") = 0)
+      .def_readonly("type", &regret::Action::type)
+      .def_readonly("amount", &regret::Action::amount)
+      .def_static("fold", &regret::Action::fold)
+      .def_static("check_call", &regret::Action::check_call)
+      .def_static("bet_raise_to", &regret::Action::bet_raise_to, py::arg("amount"))
+      .def("__repr__", [](const regret::Action& a) {
+        switch (a.type) {
+          case regret::ActionType::kFold:
+            return std::string("Action.fold()");
+          case regret::ActionType::kCheckCall:
+            return std::string("Action.check_call()");
+          default:
+            return "Action.bet_raise_to(" + std::to_string(a.amount) + ")";
+        }
+      });
+
+  py::class_<regret::LegalActions>(m, "LegalActions")
+      .def_readonly("fold", &regret::LegalActions::fold)
+      .def_readonly("check_call", &regret::LegalActions::check_call)
+      .def_readonly("call_amount", &regret::LegalActions::call_amount)
+      .def_readonly("bet_raise", &regret::LegalActions::bet_raise)
+      .def_readonly("min_raise_to", &regret::LegalActions::min_raise_to)
+      .def_readonly("max_raise_to", &regret::LegalActions::max_raise_to);
+
+  py::class_<regret::Pot>(m, "Pot")
+      .def_readonly("amount", &regret::Pot::amount)
+      .def_readonly("eligible", &regret::Pot::eligible);
+
+  py::class_<regret::HandState>(m, "HandState", "No-limit hold'em betting state for 2-6 seats.")
+      .def(py::init([](std::vector<regret::Chips> stacks, regret::Chips sb, regret::Chips bb) {
+             return regret::HandState(regret::TableRules{std::move(stacks), sb, bb});
+           }),
+           py::arg("starting_stacks"), py::arg("small_blind"), py::arg("big_blind"))
+      .def_property_readonly("num_players", &regret::HandState::num_players)
+      .def_property_readonly("button", &regret::HandState::button)
+      .def_property_readonly("street", &regret::HandState::street)
+      .def_property_readonly("is_terminal", &regret::HandState::is_terminal)
+      .def_property_readonly("is_showdown", &regret::HandState::is_showdown)
+      .def_property_readonly("to_act", &regret::HandState::to_act)
+      .def_property_readonly("current_bet", &regret::HandState::current_bet)
+      .def_property_readonly("pot", &regret::HandState::pot)
+      .def_property_readonly("non_folded", &regret::HandState::non_folded)
+      .def_property_readonly("stacks",
+                             [](const regret::HandState& h) {
+                               std::vector<regret::Chips> v;
+                               for (int i = 0; i < h.num_players(); ++i) v.push_back(h.stack(i));
+                               return v;
+                             })
+      .def_property_readonly("bets",
+                             [](const regret::HandState& h) {
+                               std::vector<regret::Chips> v;
+                               for (int i = 0; i < h.num_players(); ++i) v.push_back(h.bet(i));
+                               return v;
+                             })
+      .def_property_readonly("contributed",
+                             [](const regret::HandState& h) {
+                               std::vector<regret::Chips> v;
+                               for (int i = 0; i < h.num_players(); ++i)
+                                 v.push_back(h.contributed(i));
+                               return v;
+                             })
+      .def_property_readonly("statuses",
+                             [](const regret::HandState& h) {
+                               std::vector<regret::PlayerStatus> v;
+                               for (int i = 0; i < h.num_players(); ++i) v.push_back(h.status(i));
+                               return v;
+                             })
+      .def_property_readonly(
+          "history",
+          [](const regret::HandState& h) {
+            py::list out;
+            for (const auto& e : h.history())
+              out.append(py::make_tuple(e.street, e.seat, e.action));
+            return out;
+          },
+          "List of (street, seat, action).")
+      .def("legal_actions", &regret::HandState::legal_actions)
+      .def(
+          "why_illegal",
+          [](const regret::HandState& h, const regret::Action& a) -> py::object {
+            const char* why = h.why_illegal(a);
+            return why ? py::str(why) : py::object(py::none());
+          },
+          py::arg("action"), "None if legal, else the reason.")
+      .def("apply", &regret::HandState::apply, py::arg("action"))
+      .def("pots", &regret::HandState::pots)
+      .def(
+          "payoffs",
+          [](const regret::HandState& h, const std::vector<std::vector<int>>& hole,
+             const std::vector<int>& board) {
+            std::vector<std::array<Card, 2>> hc;
+            for (const auto& cards : hole) {
+              if (cards.size() != 2) throw py::value_error("each seat needs 2 hole cards");
+              hc.push_back({checked_card(cards[0]), checked_card(cards[1])});
+            }
+            std::array<Card, 5> b{};
+            if (h.is_showdown()) {
+              if (board.size() != 5) throw py::value_error("showdown needs a 5-card board");
+              for (int i = 0; i < 5; ++i) b[i] = checked_card(board[i]);
+            }
+            return h.payoffs(hc, b);
+          },
+          py::arg("hole_cards"), py::arg("board"), "Net chips won per seat once the hand is over.")
+      .def("copy", [](const regret::HandState& h) { return regret::HandState(h); });
 }
