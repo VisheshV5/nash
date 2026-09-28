@@ -25,9 +25,13 @@ add_library(regret_native STATIC
   cpp/src/cards/evaluator.cpp
   cpp/src/cards/isomorphism.cpp
   cpp/src/engine/engine.cpp
+  cpp/src/cfr/infoset_store.cpp
+  cpp/src/cfr/solver.cpp
 )
 target_include_directories(regret_native PUBLIC cpp/include)
 set_target_properties(regret_native PROPERTIES POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+target_link_libraries(regret_native PUBLIC Threads::Threads)
 
 if(DEFINED SKBUILD_PROJECT_NAME)
   set(PYBIND11_FINDPYTHON ON)

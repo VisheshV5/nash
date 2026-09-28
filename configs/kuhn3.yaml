@@ -1,0 +1,18 @@
+# Three-player Kuhn poker: no Nash guarantee for CFR, but NashConv should still shrink.
+name: kuhn3
+game: kuhn3
+training:
+  seed: 0
+  deterministic: true
+  threads: 1
+  checkpoint_every_iterations: 5000000
+  checkpoint_every_minutes: 5
+  keep_last_checkpoints: 2
+  log_every_seconds: 5
+cfr:
+  lcfr_until_iteration: 2000000
+  discount_interval: 20000
+  max_infosets: 1024
+  target_iterations: 20000000
+eval:
+  every_iterations: 5000000

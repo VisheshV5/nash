@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Any, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -107,13 +107,43 @@ class CardAbstractionConfig(_Strict):
 class TrainingConfig(_Strict):
     seed: int = Field(default=0, ge=0)
     deterministic: bool = False
-    """Fixed thread count and deterministic reduction, so resume is bit-exact."""
+    """Single-threaded, so a run (and any resume of it) is bit-for-bit reproducible."""
     threads: int = Field(default=6, ge=1, le=256)
     memory_budget_gb: PositiveFloat = 10.0
-    checkpoint_dir: Path = Path("runs/default/checkpoints")
+    run_dir: Path | None = None
+    """Checkpoints, logs and metrics go here. Defaults to runs/<name>."""
     checkpoint_every_iterations: int | None = Field(default=None, ge=1)
     checkpoint_every_minutes: PositiveFloat = 15.0
     keep_last_checkpoints: int = Field(default=2, ge=1)
+    log_every_seconds: PositiveFloat = 10.0
+
+    @model_validator(mode="after")
+    def _deterministic_single_thread(self) -> Self:
+        if self.deterministic and self.threads != 1:
+            raise ValueError("training.deterministic needs training.threads: 1")
+        return self
+
+
+class CfrConfig(_Strict):
+    """MCCFR schedule: Linear CFR discounting, negative-regret pruning, table size."""
+
+    lcfr_until_iteration: int = Field(default=0, ge=0)
+    """Discount regrets and strategy sums by t/(t+1) every interval until here. 0 = off."""
+    discount_interval: int = Field(default=1000, ge=1)
+    prune_after_iteration: int | None = Field(default=None, ge=0)
+    """Start negative-regret pruning here. None = never."""
+    prune_probability: float = Field(default=0.95, ge=0, le=1)
+    prune_threshold: float = -1e9
+    regret_floor: float | None = None
+    max_infosets: int = Field(default=1 << 20, ge=16)
+    """Regret table capacity (fixed up front; the memory planner sizes it for hold'em)."""
+    target_iterations: int | None = Field(default=None, ge=1)
+    """Stop here. None = run until stopped."""
+
+
+class EvalConfig(_Strict):
+    every_iterations: int | None = Field(default=None, ge=1)
+    every_minutes: PositiveFloat | None = 10.0
 
 
 class SearchConfig(_Strict):
@@ -136,6 +166,8 @@ class RegretConfig(_Strict):
     actions: ActionAbstractionConfig
     cards: CardAbstractionConfig
     training: TrainingConfig = TrainingConfig()
+    cfr: CfrConfig = CfrConfig()
+    eval: EvalConfig = EvalConfig()
     search: SearchConfig = SearchConfig()
 
     @model_validator(mode="after")
@@ -153,10 +185,39 @@ class RegretConfig(_Strict):
         return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
-def load_config(path: str | Path) -> RegretConfig:
-    """Load and validate a YAML config file."""
+ToyGame = Literal["kuhn", "kuhn3", "leduc"]
+
+
+class ToyGameConfig(_Strict):
+    """Training config for the small validation games (exact exploitability is available)."""
+
+    name: str = Field(min_length=1)
+    game: ToyGame
+    training: TrainingConfig = TrainingConfig(threads=1, deterministic=True)
+    cfr: CfrConfig = CfrConfig()
+    eval: EvalConfig = EvalConfig()
+
+    def config_hash(self) -> str:
+        canonical = json.dumps(self.model_dump(mode="json"), sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+def _read_yaml(path: str | Path) -> dict[str, Any]:
     with Path(path).open() as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected a mapping at the top level")
+    return data
+
+
+def load_config(path: str | Path) -> RegretConfig:
+    """Load and validate a hold'em YAML config file."""
+    return RegretConfig.model_validate(_read_yaml(path))
+
+
+def load_train_config(path: str | Path) -> RegretConfig | ToyGameConfig:
+    """Load any training config: toy games have a top-level `game` key."""
+    data = _read_yaml(path)
+    if "game" in data:
+        return ToyGameConfig.model_validate(data)
     return RegretConfig.model_validate(data)

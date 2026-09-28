@@ -1,0 +1,18 @@
+# Two-player Leduc hold'em: the M2 acceptance game (exploitability < 0.01 chips/hand).
+name: leduc
+game: leduc
+training:
+  seed: 0
+  deterministic: true
+  threads: 1
+  checkpoint_every_iterations: 5000000
+  checkpoint_every_minutes: 5
+  keep_last_checkpoints: 2
+  log_every_seconds: 5
+cfr:
+  lcfr_until_iteration: 3000000
+  discount_interval: 30000
+  max_infosets: 4096
+  target_iterations: 30000000
+eval:
+  every_iterations: 5000000

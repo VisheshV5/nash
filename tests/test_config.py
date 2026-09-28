@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from regret.utils.config import RegretConfig, load_config
+from regret.utils.config import RegretConfig, ToyGameConfig, load_config, load_train_config
 
 CONFIGS = Path(__file__).resolve().parents[1] / "configs"
 
@@ -18,7 +18,21 @@ def _hu() -> dict[str, Any]:
 
 @pytest.mark.parametrize("path", sorted(CONFIGS.glob("*.yaml")), ids=lambda p: p.name)
 def test_shipped_configs_load(path: Path) -> None:
-    load_config(path)
+    load_train_config(path)
+
+
+def test_toy_configs_dispatch() -> None:
+    cfg = load_train_config(CONFIGS / "leduc.yaml")
+    assert isinstance(cfg, ToyGameConfig)
+    assert cfg.game == "leduc"
+    assert isinstance(load_train_config(CONFIGS / "hu_default.yaml"), RegretConfig)
+
+
+def test_deterministic_needs_one_thread() -> None:
+    data = _hu()
+    data["training"]["deterministic"] = True
+    with pytest.raises(ValidationError, match="threads: 1"):
+        RegretConfig.model_validate(data)
 
 
 def test_hu_default_values() -> None:

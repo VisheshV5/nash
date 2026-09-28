@@ -149,18 +149,18 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M0.
 
-### M2 — MCCFR core on toy games + training infrastructure (~4–5 days)
+### M2 — MCCFR core on toy games + training infrastructure (~4–5 days)  ✅ *done 2026-09-28*
 **Deliverables**
 - C++ N-player external-sampling MCCFR: traverser rotates each iteration, Linear CFR / discounting, negative-regret pruning (after warm-up, skip actions below the threshold 95% of the time), lazy regret allocation, multithreaded with atomic `int32` regrets.
 - Generic game interface. The same trainer runs Kuhn, Leduc, 3-player Kuhn/Leduc, and (in M4) abstracted NLHE.
 - Exact best response / exploitability for 2-player toy games.
 - **Training harness (Spec §6.1), built once and reused:** `train.py`, checkpoints every N iters and every M minutes, atomic write (tmp → fsync → rename), keep last K, zstd, `--resume`, graceful stop on SIGINT/SIGTERM (finish the iteration, checkpoint, exit), log file + TensorBoard (it/s, elapsed, ETA, RSS, loss), `status.py`, `scripts/run_background.sh` (tmux + `caffeinate`).
-- **Throughput benchmark** on the M2 Pro. Its output replaces the compute estimates in M4.
+- **Throughput benchmark** on the M2 Pro. Its output replaces the compute estimates in M4. *(Toy-game numbers measured in M2: Leduc 3.0M it/s on 1 thread. The hold'em benchmark needs the abstraction, so it moves to the start of M4.)*
 
 **Acceptance**
 - Kuhn: exploitability < 1e-3, and game value within 1e-3 of −1/18. Leduc: exploitability < 0.01 chips/hand and falling on a log-log plot.
 - 3-player Kuhn converges near published equilibria (sanity check that the core is N-player).
-- **Resume determinism:** in deterministic mode (fixed thread count), 1000 iters followed by a kill and resume for 1000 more gives byte-identical regrets to 2000 uninterrupted iters. Kill -9 mid-checkpoint never corrupts the latest valid checkpoint (tested).
+- **Resume determinism:** in deterministic mode (**one thread**; each iteration's randomness comes only from (seed, iteration)), 1000 iters followed by a kill and resume for 1000 more gives byte-identical regrets to 2000 uninterrupted iters. Multithreaded runs are statistically equivalent, not bit-exact. Kill -9 mid-checkpoint never corrupts the latest valid checkpoint (tested).
 
 **Depends on:** M0 (M1 only for the NLHE adapter at the end).
 
@@ -372,7 +372,7 @@ Then M2 (toy CFR + harness) and M3 (abstraction) can run in parallel.
 | 6-max search can't fit 1 s at 4+ players (v1.2) | Search only helps ≤ 3-way pots | D7 routing policy; anytime solver; measured in M10 |
 | Multi-day laptop training (sleep, heat, updates) | Lost runs | caffeinate + tmux, checkpoints every ≤ 15 min, bit-exact resume, pause macOS auto-updates during runs |
 | Engine rule bugs (side pots, reopen rules) | Poisons all training | PokerKit differential fuzzing before any training |
-| Bit-identical resume with multithreading | Spec §6.1 claim | Guaranteed in deterministic mode (fixed threads, deterministic reduction); documented |
+| Bit-identical resume with multithreading | Spec §6.1 claim | Guaranteed in deterministic (single-thread) mode; multithreaded runs are statistically equivalent; documented |
 | Distilled net loses strength | Size vs. strength | Keep flop tabular if it fits; bigger net; M8/M11 ablations |
 
 ---

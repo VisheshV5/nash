@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 api = ["fastapi>=0.110", "uvicorn>=0.29"]
+train = ["zstandard>=0.22", "psutil>=5.9", "tensorboardX>=2.6"]
 
 [project.urls]
 Repository = "https://github.com/VisheshV5/nash"
@@ -41,6 +42,10 @@ dev = [
     "clang-format>=18",
     "cmake>=3.20",
     "ninja>=1.11",
+    "zstandard>=0.22",
+    "psutil>=5.9",
+    "tensorboardX>=2.6",
+    "types-psutil>=5.9",
     "pokerkit>=0.7.6",
 ]
 
@@ -72,7 +77,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "NPY", "PT"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["src/regret", "tests"]
+files = ["src/regret", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "regret/cards.hpp"
+#include "regret/cfr/solver.hpp"
 #include "regret/engine.hpp"
 #include "regret/evaluator.hpp"
 #include "regret/isomorphism.hpp"
@@ -296,4 +297,60 @@ PYBIND11_MODULE(_core, m) {
           },
           py::arg("hole_cards"), py::arg("board"), "Net chips won per seat once the hand is over.")
       .def("copy", [](const regret::HandState& h) { return regret::HandState(h); });
+
+  // ---- cfr
+  py::class_<regret::NashConvResult>(m, "NashConvResult")
+      .def_readonly("best_response", &regret::NashConvResult::best_response)
+      .def_readonly("on_policy", &regret::NashConvResult::on_policy)
+      .def_readonly("nash_conv", &regret::NashConvResult::nash_conv);
+
+  py::class_<regret::CfrSolver, std::unique_ptr<regret::CfrSolver>>(
+      m, "CfrSolver", "External-sampling MCCFR (Linear CFR + pruning) for a named game.")
+      .def(py::init([](const std::string& game, std::uint64_t seed, int threads,
+                       std::int64_t lcfr_until, std::int64_t discount_interval,
+                       std::int64_t prune_after, double prune_probability, float prune_threshold,
+                       float regret_floor, std::size_t max_infosets) {
+             if (threads < 1) throw py::value_error("threads must be >= 1");
+             if (discount_interval < 1) throw py::value_error("discount_interval must be >= 1");
+             regret::CfrParams p;
+             p.seed = seed;
+             p.threads = threads;
+             p.lcfr_until = lcfr_until;
+             p.discount_interval = discount_interval;
+             p.prune_after = prune_after;
+             p.prune_probability = prune_probability;
+             p.prune_threshold = prune_threshold;
+             p.regret_floor = regret_floor;
+             p.max_infosets = max_infosets;
+             return regret::make_solver(game, p);
+           }),
+           py::arg("game"), py::arg("seed") = 0, py::arg("threads") = 1, py::arg("lcfr_until") = 0,
+           py::arg("discount_interval") = 1000, py::arg("prune_after") = -1,
+           py::arg("prune_probability") = 0.95, py::arg("prune_threshold") = -1e9f,
+           py::arg("regret_floor") = -1e30f, py::arg("max_infosets") = std::size_t{1} << 20)
+      .def(
+          "run",
+          [](regret::CfrSolver& s, std::int64_t max_iterations, double max_seconds) {
+            py::gil_scoped_release release;
+            return s.run(max_iterations, max_seconds);
+          },
+          py::arg("max_iterations"), py::arg("max_seconds") = 1e18,
+          "Run up to max_iterations more iterations or until max_seconds pass; returns the "
+          "number run.")
+      .def_property_readonly("iteration", &regret::CfrSolver::iteration)
+      .def_property_readonly("num_infosets", &regret::CfrSolver::num_infosets)
+      .def_property_readonly("memory_bytes", &regret::CfrSolver::memory_bytes)
+      .def_property_readonly("num_players", &regret::CfrSolver::num_players)
+      .def(
+          "nash_conv",
+          [](const regret::CfrSolver& s) {
+            py::gil_scoped_release release;
+            return s.nash_conv();
+          },
+          "Exact NashConv of the average strategy (small games only).")
+      .def("average_strategy", &regret::CfrSolver::average_strategy)
+      .def("save", [](const regret::CfrSolver& s) { return py::bytes(s.save()); })
+      .def(
+          "load", [](regret::CfrSolver& s, const py::bytes& b) { s.load(std::string(b)); },
+          py::arg("data"));
 }

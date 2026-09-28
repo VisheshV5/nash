@@ -33,9 +33,14 @@ training:
   deterministic: false
   threads: 6            # M2 Pro performance cores
   memory_budget_gb: 10  # of 16 GB
-  checkpoint_dir: runs/hu-100bb/checkpoints
   checkpoint_every_minutes: 15
   keep_last_checkpoints: 2
+
+cfr:                    # provisional until the M4 throughput benchmark
+  lcfr_until_iteration: 0
+  discount_interval: 1000
+  prune_after_iteration: null
+  max_infosets: 1048576
 
 search:
   enabled: true

@@ -3,7 +3,9 @@
 An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time search, small enough
 (≤ 100 MB) and fast enough (≤ 1 s per decision on a laptop CPU) to drop into your own code.
 
-> **Status: pre-alpha.** The rules engine is done (cards, evaluator, hand indexer, 2-6 player betting with side pots, GameState validation); no strategy yet.
+> **Status: pre-alpha.** Done: rules engine (cards, evaluator, hand indexer, 2-6 player betting,
+> GameState validation) and the MCCFR trainer with checkpoint/resume tooling, validated on Kuhn and
+> Leduc. Next: hold'em card abstraction and the heads-up blueprint.
 > See [ROADMAP.md](ROADMAP.md) for the plan and [SPEC.md](SPEC.md) for the requirements.
 
 ## Development
@@ -31,14 +33,74 @@ uv run cmake --build build/cpp-tests
 ./build/cpp-tests/regret_tests --slow   # + every turn deal, every turn/river index (~3 min)
 ```
 
+## Training
+
+Training runs for hours to days, so it checkpoints automatically, resumes exactly, and stops
+cleanly. Everything for a run lives in one directory (`runs/<name>/` by default): `checkpoints/`,
+`metrics.jsonl`, `train.log`, `tb/` (TensorBoard) and `config.yaml`.
+
+```bash
+uv run python scripts/train.py configs/leduc.yaml            # foreground; Ctrl+C checkpoints and exits
+uv run python scripts/train.py configs/leduc.yaml --resume   # continue from the latest checkpoint
+uv run python scripts/status.py runs/leduc                   # progress, ETA, memory, last eval
+uvx tensorboard --logdir runs                                # charts (optional)
+```
+
+The toy configs (`kuhn`, `kuhn3`, `leduc`) validate the solver in seconds; hold'em training
+arrives with the card abstraction (ROADMAP M3/M4).
+
+- **Checkpoints** are written every `checkpoint_every_iterations` and every
+  `checkpoint_every_minutes`, atomically (temp file, fsync, rename), with a checksum; the newest
+  `keep_last_checkpoints` are kept. A crash mid-write can't damage the latest good checkpoint.
+- **Resume** refuses a checkpoint made with a different game, CFR schedule or seed. With
+  `training.deterministic: true` (one thread) a resumed run is bit-for-bit identical to an
+  uninterrupted one; multithreaded runs are statistically equivalent but not bit-exact.
+- **Stopping:** Ctrl+C or `kill -TERM $(cat runs/<name>/train.pid)` finishes the current
+  chunk (under a second), checkpoints and exits 0. A second Ctrl+C aborts immediately.
+
+### On a laptop (macOS)
+
+```bash
+scripts/run_background.sh configs/leduc.yaml     # tmux if installed, else nohup; wraps in caffeinate -is
+uv run python scripts/status.py runs/leduc       # check in any time
+```
+
+Keep the laptop plugged in (`caffeinate -s` only prevents sleep on AC power) and the lid open,
+or closed with an external display. The script always passes `--resume`, so after a reboot or
+crash just run it again. Install tmux (`brew install tmux`) to be able to reattach to the live
+output with `tmux attach -t regret-leduc` (detach: Ctrl+B, then D).
+
+### On a rented cloud server (Linux)
+
+```bash
+# setup (once)
+curl -LsSf https://astral.sh/uv/install.sh | sh && sudo apt-get install -y build-essential tmux
+git clone https://github.com/VisheshV5/nash.git && cd nash && uv sync
+
+# launch, then log out: the tmux session keeps running
+scripts/run_background.sh configs/leduc.yaml
+exit
+
+# later: reattach or just check status
+ssh server -t 'cd nash && tmux attach -t regret-leduc'
+ssh server 'cd nash && uv run python scripts/status.py runs/leduc'
+
+# download checkpoints and logs
+rsync -avz server:nash/runs/leduc/ runs/leduc/
+```
+
+Set `training.threads` to the server's core count. `status.py` only reads files, so it's safe
+to run while training continues.
+
 ## Layout
 
 | Path | What |
 |---|---|
 | `cpp/` | Native core (engine, abstraction, CFR, search) exposed to Python as `regret._core` |
 | `src/regret/` | Python package: config, orchestration, agent, API, eval |
-| `configs/` | YAML configs (`hu_default.yaml`) |
-| `tests/` | pytest suite |
+| `configs/` | YAML configs: `hu_default.yaml` (hold'em), `kuhn`/`kuhn3`/`leduc` (solver validation) |
+| `scripts/` | `train.py`, `status.py`, `run_background.sh` |
+| `tests/` | pytest suite (+ `fuzz_pokerkit.py` for the full engine fuzz) |
 
 ## License
 
