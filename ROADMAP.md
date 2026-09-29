@@ -181,16 +181,24 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M1.
 
-### M4 — Heads-up blueprint + evaluation harness ★ (~4–5 days, +2–4 days compute)
+### M4 — Heads-up blueprint + evaluation harness ★ (~4–5 days, +2–4 days compute)  🔄 *harness done 2026-09-28; 3-day blueprint run in progress*
 **Deliverables**
 - NLHE adapter for the MCCFR core. Preflop average strategy, postflop snapshots (D3).
 - `export.py`: checkpoint → agent bundle. Works mid-training.
 - `eval/`: baselines (random, always-call, equity-threshold rule bot), match runner (duplicate deals + seat rotation), AIVAT, mbb/hand ± 95% CI, HU abstract-game exploitability, **LBR** in the full game.
 - Periodic in-training eval: exploitability and win rate vs. baselines, logged to TensorBoard.
 
+*As built (2026-09-28):*
+- **Blueprint size (option D, chosen with the memory planner):** 500 buckets per postflop street; preflop opens 2.0/2.5bb, 3-bets 2.5x/3.5x IP and 3.5x/4.5x OOP, 4-bet 2.3x; postflop bets 33/75/125% pot, raises 75/150% pot, all-in. 24.6M infosets, 1.3 GB. Throughput ~55k it/s on 6 threads once play deepens (138k it/s at the start).
+- **Average strategy on every street.** D3's "postflop snapshots only" was a RAM saving; at 1.3 GB it isn't needed, and the average strategy is the one with guarantees.
+- **No abstract-game exploitability for hold'em.** The card abstraction is imperfect-recall (a turn bucket doesn't remember the flop bucket), so an exact abstract best response isn't well defined. Exploitability is measured with LBR in the real game.
+- **LBR bets only the blueprint's own sizes (plus all-in) and only calls preflop.** That keeps its model of the blueprint's range exact, because the blueprint maps those bets back without randomness. It's a standard restriction; the result is still a lower bound on exploitability.
+- **Variance reduction is duplicate deals plus AIVAT's chance-node part (all-in EV over runouts).** Decision-node AIVAT corrections are deferred to M8 if the confidence intervals need tightening.
+- Off-tree play (e.g. more raises than the abstraction allows) falls back to check/call and is counted; M5's search is the real fix.
+
 **Acceptance**
 - Beats all three baselines HU with the 95% CI excluding 0. Later checkpoints beat earlier ones.
-- Abstract exploitability falls across checkpoints. The LBR number is recorded as the baseline for M5.
+- LBR falls across checkpoints. The final LBR number is recorded as the baseline for M5.
 - Peak training RSS ≤ 10 GB. Blueprint-only decision latency ≤ 20 ms. Tabular bundle size measured (decides whether M7 distills).
 
 **Depends on:** M2, M3.

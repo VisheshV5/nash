@@ -16,7 +16,7 @@ from regret.abstraction.cards import CardAbstraction
 from regret.abstraction.kmeans import kmeans
 from regret.abstraction.planner import plan
 from regret.engine.cards import evaluate, indexer, parse_cards
-from regret.utils.config import CardAbstractionConfig, load_config
+from regret.utils.config import ActionAbstractionConfig, CardAbstractionConfig, load_config
 
 CONFIGS = Path(__file__).resolve().parents[1] / "configs"
 PAIRS = [(a, b) for b in range(52) for a in range(b)]
@@ -164,7 +164,17 @@ def test_strong_hands_land_in_strong_river_buckets(tiny: CardAbstraction) -> Non
 
 @pytest.fixture
 def rules() -> _core.ActionRules:
-    return rules_from_config(load_config(CONFIGS / "hu_default.yaml").actions)
+    """Pinned sizes (independent of the shipped config, which gets tuned)."""
+    return rules_from_config(
+        ActionAbstractionConfig.model_validate(
+            {
+                "preflop": {"open_bb": [2.5], "reraise_x_ip": [3.0], "reraise_x_oop": [4.0],
+                            "four_bet_x": [2.3], "max_raises": 4},
+                "postflop": {2: {"bet_pot": [0.33, 0.75, 1.25], "raise_pot": [0.75],
+                                 "max_raises": 3}},
+            }
+        )
+    )
 
 
 def labels(h: _core.HandState, rules: _core.ActionRules) -> list[str]:
