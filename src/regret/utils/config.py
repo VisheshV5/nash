@@ -62,6 +62,8 @@ class PostflopSizing(_Strict):
     raise_pot: list[PositiveFloat] = Field(default_factory=list)
     """Raise sizes as fractions of the pot after calling. Empty means all-in only."""
     allow_all_in: bool = True
+    max_raises: int = Field(default=3, ge=1, le=8)
+    """Bets + raises per street before only calls (and all-in) remain."""
 
     @model_validator(mode="after")
     def _sorted(self) -> Self:
@@ -101,7 +103,16 @@ class CardAbstractionConfig(_Strict):
     river_opponent_clusters: int = Field(default=8, ge=1, le=64)
     """Opponent-hand clusters used for river OCHS features."""
     feature_sample_size: int = Field(default=10_000_000, ge=1)
-    """Isomorphic turn/river states sampled to fit centroids (ROADMAP M3)."""
+    """Turn/river (hole, board) rows sampled to fit centroids (ROADMAP M3)."""
+    turn_bins: int = Field(default=50, ge=2, le=255)
+    """Equity bins of the turn histogram feature."""
+    preflop_equity_samples: int = Field(default=20_000, ge=100)
+    """Monte Carlo runouts per preflop class when grouping opponent hands for OCHS."""
+    seed: int = Field(default=0, ge=0)
+
+    def config_hash(self) -> str:
+        canonical = json.dumps(self.model_dump(mode="json"), sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
 class TrainingConfig(_Strict):

@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "regret/abstraction/actions.hpp"
+#include "regret/abstraction/builders.hpp"
+#include "regret/abstraction/card_features.hpp"
 #include "regret/cards.hpp"
 #include "regret/cfr/solver.hpp"
 #include "regret/engine.hpp"
@@ -353,4 +356,204 @@ PYBIND11_MODULE(_core, m) {
       .def(
           "load", [](regret::CfrSolver& s, const py::bytes& b) { s.load(std::string(b)); },
           py::arg("data"));
+
+  // ---- card abstraction
+  namespace ab = regret::abstraction;
+  auto u8 = [](const std::vector<std::uint8_t>& v) {
+    return py::array_t<std::uint8_t>(static_cast<py::ssize_t>(v.size()), v.data());
+  };
+  auto u16 = [](const std::vector<std::uint16_t>& v) {
+    return py::array_t<std::uint16_t>(static_cast<py::ssize_t>(v.size()), v.data());
+  };
+  auto f32 = [](const std::vector<float>& v) {
+    return py::array_t<float>(static_cast<py::ssize_t>(v.size()), v.data());
+  };
+  auto board_of = [](const std::vector<int>& ids, std::size_t n) {
+    if (ids.size() != n) throw py::value_error("expected " + std::to_string(n) + " board cards");
+    auto cards = checked_cards(ids);
+    return cards;
+  };
+  using U8Array = py::array_t<std::uint8_t, py::array::c_style | py::array::forcecast>;
+  using U16Array = py::array_t<std::uint16_t, py::array::c_style | py::array::forcecast>;
+  using F32Array = py::array_t<float, py::array::c_style | py::array::forcecast>;
+  auto vec_u8 = [](const U8Array& a) {
+    return std::vector<std::uint8_t>(a.data(), a.data() + a.size());
+  };
+  auto vec_u16 = [](const U16Array& a) {
+    return std::vector<std::uint16_t>(a.data(), a.data() + a.size());
+  };
+  auto vec_f32 = [](const F32Array& a) {
+    return std::vector<float>(a.data(), a.data() + a.size());
+  };
+
+  m.def(
+      "hole_index", [](int a, int b) { return ab::hole_index(checked_card(a), checked_card(b)); },
+      py::arg("a"), py::arg("b"), "Index 0..1325 of an unordered hole pair.");
+  m.def(
+      "river_equities",
+      [=](const std::vector<int>& board) {
+        const auto b = board_of(board, 5);
+        std::vector<float> eq(ab::kNumHoles);
+        {
+          py::gil_scoped_release release;
+          ab::river_equities(b.data(), eq.data());
+        }
+        return f32(eq);
+      },
+      py::arg("board"),
+      "Equity of every hole index vs a random hand on a 5-card board (-1 if blocked).");
+  m.def(
+      "river_ochs",
+      [=](const std::vector<int>& board, const U8Array& cluster_of, int k) {
+        const auto b = board_of(board, 5);
+        if (cluster_of.size() != ab::kNumHoles)
+          throw py::value_error("cluster_of needs 1326 entries");
+        std::vector<float> out(static_cast<std::size_t>(ab::kNumHoles) * k);
+        ab::river_ochs(b.data(), cluster_of.data(), k, out.data());
+        return f32(out).reshape({ab::kNumHoles, k});
+      },
+      py::arg("board"), py::arg("cluster_of"), py::arg("k"));
+  m.def(
+      "river_ochs_one",
+      [=](const std::vector<int>& hole, const std::vector<int>& board, const U8Array& cluster_of,
+          int k) {
+        const auto h = board_of(hole, 2);
+        const auto b = board_of(board, 5);
+        std::vector<float> out(k);
+        ab::river_ochs_one(h[0], h[1], b.data(), cluster_of.data(), k, out.data());
+        return f32(out);
+      },
+      py::arg("hole"), py::arg("board"), py::arg("cluster_of"), py::arg("k"));
+  m.def(
+      "turn_histograms",
+      [=](const std::vector<int>& board, int bins) {
+        const auto b = board_of(board, 4);
+        std::vector<std::uint8_t> out(static_cast<std::size_t>(ab::kNumHoles) * bins);
+        ab::turn_histograms(b.data(), bins, out.data());
+        return u8(out).reshape({ab::kNumHoles, bins});
+      },
+      py::arg("board"), py::arg("bins"));
+  m.def(
+      "turn_histogram_one",
+      [=](const std::vector<int>& hole, const std::vector<int>& board, int bins) {
+        const auto h = board_of(hole, 2);
+        const auto b = board_of(board, 4);
+        std::vector<std::uint8_t> out(bins);
+        ab::turn_histogram_one(h[0], h[1], b.data(), bins, out.data());
+        return u8(out);
+      },
+      py::arg("hole"), py::arg("board"), py::arg("bins"));
+  m.def("preflop_class_of_hole", [=] { return u8(ab::preflop_class_of_hole()); });
+  m.def(
+      "preflop_class_equity",
+      [](int samples, std::uint64_t seed, int threads) {
+        py::gil_scoped_release release;
+        return ab::preflop_class_equity(samples, seed, threads);
+      },
+      py::arg("samples"), py::arg("seed"), py::arg("threads"));
+  m.def(
+      "sample_river_ochs",
+      [=](int boards, std::uint64_t seed, const U8Array& cluster_of, int k, int threads) {
+        const auto c = vec_u8(cluster_of);
+        std::vector<float> out;
+        {
+          py::gil_scoped_release release;
+          out = ab::sample_river_ochs(boards, seed, c, k, threads);
+        }
+        return f32(out).reshape(
+            {static_cast<py::ssize_t>(out.size() / k), static_cast<py::ssize_t>(k)});
+      },
+      py::arg("boards"), py::arg("seed"), py::arg("cluster_of"), py::arg("k"), py::arg("threads"));
+  m.def(
+      "sample_turn_histograms",
+      [=](int boards, std::uint64_t seed, int bins, int threads) {
+        std::vector<std::uint8_t> out;
+        {
+          py::gil_scoped_release release;
+          out = ab::sample_turn_histograms(boards, seed, bins, threads);
+        }
+        return u8(out).reshape(
+            {static_cast<py::ssize_t>(out.size() / bins), static_cast<py::ssize_t>(bins)});
+      },
+      py::arg("boards"), py::arg("seed"), py::arg("bins"), py::arg("threads"));
+  m.def(
+      "flop_features",
+      [=](const U16Array& turn_table, const U16Array& turn_rank, int threads) {
+        const auto tt = vec_u16(turn_table);
+        const auto tr = vec_u16(turn_rank);
+        ab::FlopFeatures f;
+        {
+          py::gil_scoped_release release;
+          f = ab::flop_features(tt, tr, threads);
+        }
+        const auto k = static_cast<py::ssize_t>(tr.size());
+        return py::make_tuple(u8(f.counts).reshape({static_cast<py::ssize_t>(f.rows), k}),
+                              f32(f.weights));
+      },
+      py::arg("turn_table"), py::arg("turn_rank"), py::arg("threads"));
+  m.def(
+      "build_river_table",
+      [=](const U8Array& cluster_of, int k, const F32Array& centroids, int threads) {
+        const auto c = vec_u8(cluster_of);
+        const auto cent = vec_f32(centroids);
+        std::vector<std::uint16_t> out;
+        {
+          py::gil_scoped_release release;
+          out = ab::build_river_table(c, k, cent, threads);
+        }
+        return u16(out);
+      },
+      py::arg("cluster_of"), py::arg("k"), py::arg("centroids"), py::arg("threads"));
+  m.def(
+      "build_turn_table",
+      [=](int bins, const F32Array& centroids, int threads) {
+        const auto cent = vec_f32(centroids);
+        std::vector<std::uint16_t> out;
+        {
+          py::gil_scoped_release release;
+          out = ab::build_turn_table(bins, cent, threads);
+        }
+        return u16(out);
+      },
+      py::arg("bins"), py::arg("centroids"), py::arg("threads"));
+  m.def(
+      "build_flop_table",
+      [=](const U16Array& turn_table, const U16Array& turn_rank, const F32Array& centroids,
+          int threads) {
+        const auto tt = vec_u16(turn_table);
+        const auto tr = vec_u16(turn_rank);
+        const auto cent = vec_f32(centroids);
+        std::vector<std::uint16_t> out;
+        {
+          py::gil_scoped_release release;
+          out = ab::build_flop_table(tt, tr, cent, threads);
+        }
+        return u16(out);
+      },
+      py::arg("turn_table"), py::arg("turn_rank"), py::arg("centroids"), py::arg("threads"));
+
+  // ---- action abstraction
+  py::class_<ab::PreflopSizing>(m, "PreflopSizing")
+      .def(py::init<>())
+      .def_readwrite("open_bb", &ab::PreflopSizing::open_bb)
+      .def_readwrite("reraise_x_ip", &ab::PreflopSizing::reraise_x_ip)
+      .def_readwrite("reraise_x_oop", &ab::PreflopSizing::reraise_x_oop)
+      .def_readwrite("four_bet_x", &ab::PreflopSizing::four_bet_x)
+      .def_readwrite("all_in", &ab::PreflopSizing::all_in)
+      .def_readwrite("max_raises", &ab::PreflopSizing::max_raises);
+  py::class_<ab::PostflopSizing>(m, "PostflopSizing")
+      .def(py::init<>())
+      .def_readwrite("bet_pot", &ab::PostflopSizing::bet_pot)
+      .def_readwrite("raise_pot", &ab::PostflopSizing::raise_pot)
+      .def_readwrite("all_in", &ab::PostflopSizing::all_in)
+      .def_readwrite("max_raises", &ab::PostflopSizing::max_raises);
+  py::class_<ab::ActionRules>(m, "ActionRules")
+      .def(py::init<>())
+      .def_readwrite("chips_per_bb", &ab::ActionRules::chips_per_bb)
+      .def_readwrite("preflop", &ab::ActionRules::preflop)
+      .def_readwrite("postflop", &ab::ActionRules::postflop);
+  m.def("abstract_actions", &ab::abstract_actions, py::arg("state"), py::arg("rules"));
+  m.def("pot_fraction", &ab::pot_fraction, py::arg("state"), py::arg("to"));
+  m.def("pseudo_harmonic", &ab::pseudo_harmonic, py::arg("a"), py::arg("b"), py::arg("x"));
+  m.def("translate", &ab::translate, py::arg("state"), py::arg("rules"), py::arg("action"));
 }

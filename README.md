@@ -4,8 +4,8 @@ An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time se
 (≤ 100 MB) and fast enough (≤ 1 s per decision on a laptop CPU) to drop into your own code.
 
 > **Status: pre-alpha.** Done: rules engine (cards, evaluator, hand indexer, 2-6 player betting,
-> GameState validation) and the MCCFR trainer with checkpoint/resume tooling, validated on Kuhn and
-> Leduc. Next: hold'em card abstraction and the heads-up blueprint.
+> GameState validation), the MCCFR trainer with checkpoint/resume tooling (validated on Kuhn and
+> Leduc), and the card + action abstraction. Next: the heads-up blueprint.
 > See [ROADMAP.md](ROADMAP.md) for the plan and [SPEC.md](SPEC.md) for the requirements.
 
 ## Development
@@ -47,7 +47,13 @@ uvx tensorboard --logdir runs                                # charts (optional)
 ```
 
 The toy configs (`kuhn`, `kuhn3`, `leduc`) validate the solver in seconds; hold'em training
-arrives with the card abstraction (ROADMAP M3/M4).
+arrives in ROADMAP M4. Before it, build the card abstraction once (about 16 minutes on an M2 Pro,
+264 MB under `artifacts/`) and check the blueprint's memory needs:
+
+```bash
+uv run python scripts/build_abstraction.py configs/hu_default.yaml
+uv run python scripts/plan_memory.py configs/hu_default.yaml
+```
 
 - **Checkpoints** are written every `checkpoint_every_iterations` and every
   `checkpoint_every_minutes`, atomically (temp file, fsync, rename), with a checksum; the newest
@@ -99,7 +105,7 @@ to run while training continues.
 | `cpp/` | Native core (engine, abstraction, CFR, search) exposed to Python as `regret._core` |
 | `src/regret/` | Python package: config, orchestration, agent, API, eval |
 | `configs/` | YAML configs: `hu_default.yaml` (hold'em), `kuhn`/`kuhn3`/`leduc` (solver validation) |
-| `scripts/` | `train.py`, `status.py`, `run_background.sh` |
+| `scripts/` | `train.py`, `status.py`, `run_background.sh`, `build_abstraction.py`, `plan_memory.py` |
 | `tests/` | pytest suite (+ `fuzz_pokerkit.py` for the full engine fuzz) |
 
 ## License

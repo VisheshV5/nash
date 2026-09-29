@@ -63,7 +63,8 @@ Card-isomorphic index counts, with the board treated as one set (hole + board): 
 | Preflop strategy, 6-max *(v1.2)* | tabular `uint8`, reachable sequences only, raise cap 4 | 10–20 MB |
 | Preflop strategy, HU | tabular `uint8` | ≤ 1 MB |
 | Flop buckets | `uint8` table over isomorphic index | 1.3 MB |
-| Turn / river buckets | centroids + runtime features (≤ 5 ms / ≤ 1 ms) | < 1 MB |
+| Turn buckets | uint16 table over isomorphic index | 27 MB (uint8 if ≤ 256 buckets: 14 MB) |
+| River buckets | centroids + runtime OCHS features (12 µs) | < 1 MB |
 | Postflop strategy, HU (v1) | tabular `uint8` if it fits, else MLP (ONNX fp16) | 5–60 MB, measured in M4 |
 | Postflop policy net, 6-max *(v1.2)* | MLP, ONNX fp16 | 5–10 MB |
 | Hand evaluator | bit-arithmetic evaluator, no lookup tables (not the 130 MB 2+2 table) | 0 MB |
@@ -164,19 +165,19 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M0 (M1 only for the NLHE adapter at the end).
 
-### M3 — Card + action abstraction (~4–5 days, +~0.5 day compute)
+### M3 — Card + action abstraction (~4–5 days, +~0.5 day compute)  ✅ *done 2026-09-28*
 **Deliverables**
 - Features (C++/Numba): river OCHS, turn equity histograms, flop potential-aware histograms. **Disk-light design:** river and turn centroids are fit on a *sample* of isomorphic states (≈ 5–10M), not the full 123M. Features are float16 and streamed to disk. Flop features are computed in full (1.3M).
 - Clustering: k-means (L2) and EMD k-means (fast 1-D EMD for histograms), deterministic seeding, and a bucket-quality report.
-- Runtime bucketers: flop table lookup, turn/river centroid assignment, and a fine-grained mode for search (D6).
+- Runtime bucketers: flop and turn table lookup (the turn table is only 27 MB, so it ships too), river via table in training and centroids at runtime. The fine-grained mode for search moves to M5, where the solver defines what it needs.
 - Action abstraction per D5 (conditioned on active-player count, so v1.2 only needs config). Off-tree translation: randomized pseudo-harmonic mapping (seedable).
 - `build_abstraction.py` → versioned `abstraction/` artifact. **`plan_memory.py`** (D6).
 
 **Acceptance**
-- HU abstraction build finishes in ≤ 12 h and uses ≤ 8 GB of scratch disk. Runtime turn bucketing ≤ 5 ms, river ≤ 1 ms.
+- HU abstraction build finishes in ≤ 2 h and uses ≤ 8 GB of scratch disk. Runtime turn bucketing ≤ 5 ms, river ≤ 1 ms. *(Measured on the M2 Pro: 16 min total, 264 MB on disk; runtime turn 0.5 ms, river 12 µs.)*
 - Pseudo-harmonic mapping matches a closed-form table, and probabilities sum to 1.
 - Same seed gives an identical table hash. Each artifact's size is reported and fits D4.
-- The memory planner's prediction for the HU config is within the 10 GB budget. HU bucket counts are finalized (with the whole 10 GB for HU, they may go above 200).
+- The memory planner's prediction for the HU config is within the 10 GB budget. HU bucket counts are finalized (with the whole 10 GB for HU, they may go above 200). *(Measured: 3.1M infosets, 0.4 GB worst case, so there's ~25× headroom. Bucket counts and bet sizes are re-sized at the start of M4 using the throughput benchmark, trading strength against convergence time.)*
 
 **Depends on:** M1.
 

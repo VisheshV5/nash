@@ -27,6 +27,9 @@ add_library(regret_native STATIC
   cpp/src/engine/engine.cpp
   cpp/src/cfr/infoset_store.cpp
   cpp/src/cfr/solver.cpp
+  cpp/src/abstraction/card_features.cpp
+  cpp/src/abstraction/builders.cpp
+  cpp/src/abstraction/actions.cpp
 )
 target_include_directories(regret_native PUBLIC cpp/include)
 set_target_properties(regret_native PROPERTIES POSITION_INDEPENDENT_CODE ON)
