@@ -30,6 +30,7 @@ add_library(regret_native STATIC
   cpp/src/abstraction/card_features.cpp
   cpp/src/abstraction/builders.cpp
   cpp/src/abstraction/actions.cpp
+  cpp/src/games/nlhe.cpp
 )
 target_include_directories(regret_native PUBLIC cpp/include)
 set_target_properties(regret_native PROPERTIES POSITION_INDEPENDENT_CODE ON)

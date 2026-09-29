@@ -155,6 +155,8 @@ class CfrConfig(_Strict):
 class EvalConfig(_Strict):
     every_iterations: int | None = Field(default=None, ge=1)
     every_minutes: PositiveFloat | None = 10.0
+    hands: int = Field(default=1000, ge=2)
+    """Hold'em: hands per baseline in each periodic evaluation (played as duplicate pairs)."""
 
 
 class SearchConfig(_Strict):

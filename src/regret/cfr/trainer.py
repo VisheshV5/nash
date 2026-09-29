@@ -70,8 +70,15 @@ class RunSpec:
     @classmethod
     def from_config(cls, cfg: ToyGameConfig | RegretConfig) -> RunSpec:
         if isinstance(cfg, RegretConfig):
-            raise TrainingError("hold'em training arrives in M4; train a toy game for now")
+            if cfg.table.num_players != 2:
+                raise TrainingError("v1 trains heads-up only; 6-max arrives in v1.2")
+            return cls(cfg.name, "nlhe", cfg.training, cfg.cfr, cfg.eval, cfg)
         return cls(cfg.name, cfg.game, cfg.training, cfg.cfr, cfg.eval, cfg)
+
+    @property
+    def holdem(self) -> RegretConfig:
+        assert isinstance(self.config, RegretConfig)
+        return self.config
 
     @property
     def fingerprint(self) -> str:
@@ -81,16 +88,57 @@ class RunSpec:
         extended), table capacity, and thread count for non-deterministic runs.
         """
         cfr = self.cfr.model_dump(mode="json", exclude={"target_iterations", "max_infosets"})
-        algo = {
+        algo: dict[str, Any] = {
             "game": self.game,
             "cfr": cfr,
             "seed": self.training.seed,
             "deterministic": self.training.deterministic,
         }
+        if isinstance(self.config, RegretConfig):
+            algo |= {
+                "table": self.config.table.model_dump(mode="json"),
+                "actions": self.config.actions.model_dump(mode="json"),
+                "cards": self.config.cards.config_hash(),
+            }
         return hashlib.sha256(json.dumps(algo, sort_keys=True).encode()).hexdigest()[:16]
 
     def make_solver(self) -> _core.CfrSolver:
         c = self.cfr
+        if self.game == "nlhe":
+            from regret.abstraction.actions import rules_from_config
+            from regret.abstraction.build import artifact_dir
+            from regret.eval.setup import table_chips
+
+            cfg = self.holdem
+            cards_dir = artifact_dir(cfg.cards)
+            if not (cards_dir / "manifest.json").exists():
+                raise TrainingError(
+                    f"card abstraction not built ({cards_dir}); run scripts/build_abstraction.py"
+                )
+            import numpy as np
+
+            stacks, sb, bb = table_chips(cfg)
+            flop, turn, river = (
+                np.load(cards_dir / f"{name}_table.npy") for name in ("flop", "turn", "river")
+            )
+            return _core.NlheSolver(
+                stacks,
+                sb,
+                bb,
+                rules_from_config(cfg.actions),
+                flop,
+                turn,
+                river,
+                seed=derive_seed(self.training.seed, "cfr"),
+                threads=self.training.threads,
+                lcfr_until=c.lcfr_until_iteration,
+                discount_interval=c.discount_interval,
+                prune_after=-1 if c.prune_after_iteration is None else c.prune_after_iteration,
+                prune_probability=c.prune_probability,
+                prune_threshold=c.prune_threshold,
+                regret_floor=-1e30 if c.regret_floor is None else c.regret_floor,
+                max_infosets=c.max_infosets,
+            )
         return _core.CfrSolver(
             self.game,
             seed=derive_seed(self.training.seed, "cfr"),
@@ -295,7 +343,21 @@ class Trainer:
         return path
 
     def evaluate(self) -> dict[str, float]:
-        """Exact exploitability (toy games). Two-player: NashConv / 2."""
+        """Toy games: exact exploitability (two players: NashConv / 2). Hold'em: quick duplicate
+        matches against the baseline bots."""
+        if self.spec.game == "nlhe":
+            from regret.eval.setup import baseline_report
+
+            out = baseline_report(
+                self.spec.holdem, self.solver, self.spec.eval.hands, seed=self.solver.iteration
+            )
+            self._event("eval", iteration=self.solver.iteration, **out)
+            log.info(
+                "eval @ %d: %s",
+                self.solver.iteration,
+                "  ".join(f"{k} {v:+.0f}" for k, v in out.items() if k.endswith("mbb")),
+            )
+            return out
         r = self.solver.nash_conv()
         players = self.solver.num_players
         out = {

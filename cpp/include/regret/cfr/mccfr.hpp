@@ -49,9 +49,10 @@ inline void regret_matching(const InfosetStore::Slot& slot, double* sigma) {
 // concurrently against shared regrets (atomic updates): statistically the same algorithm, but
 // not bit-reproducible.
 //
-// Game concept: State; num_players(); num_deals(); deal(i) -> State (uniform chance at the
-// root only); is_terminal; current_player; num_actions; apply(State&, action index);
-// infoset_key (for the player to act); utility(State, player).
+// Game concept: State; num_players(); sample_deal(Rng&) -> State (all chance at the root);
+// is_terminal; current_player; num_actions; apply(State&, action index); infoset_key (for the
+// player to act); utility(State, player). Exact best response additionally needs num_deals()
+// and deal(i) enumerating equally likely deals (small games only).
 template <class Game>
 class Mccfr {
  public:
@@ -99,7 +100,7 @@ class Mccfr {
     const int traverser = static_cast<int>(i % game_.num_players());
     const bool prune = params_.prune_after >= 0 && i >= params_.prune_after &&
                        rng.uniform() < params_.prune_probability;
-    auto state = game_.deal(static_cast<int>(rng.below(game_.num_deals())));
+    auto state = game_.sample_deal(rng);
     traverse(state, traverser, rng, prune);
   }
 

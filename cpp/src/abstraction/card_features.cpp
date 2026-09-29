@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "regret/cfr/rng.hpp"
 #include "regret/evaluator.hpp"
 
 namespace regret::abstraction {
@@ -201,6 +202,58 @@ void turn_histogram_one(Card h0, Card h1, const Card* board4, int bins, std::uin
     const float eq = static_cast<float>(won / opponents);
     ++out[std::min(bins - 1, static_cast<int>(eq * static_cast<float>(bins)))];
   }
+}
+
+double equity_vs_range(Card h0, Card h1, const Card* board, int board_size, const float* weights,
+                       int samples, std::uint64_t seed) {
+  const CardMask mine = card_bit(h0) | card_bit(h1);
+  const CardMask known = mine | mask_of(board, board_size);
+  const auto& pairs = hole_pairs();
+  double won = 0, total = 0;
+  auto showdown = [&](CardMask b5) {
+    const HandValue me = evaluate(b5 | mine);
+    for (int h = 0; h < kNumHoles; ++h) {
+      const float w = weights[h];
+      if (w <= 0) continue;
+      const CardMask hm = card_bit(pairs[h].lo) | card_bit(pairs[h].hi);
+      if (hm & (b5 | mine)) continue;
+      const HandValue v = evaluate(b5 | hm);
+      total += w;
+      won += me > v ? w : (me == v ? 0.5 * w : 0.0);
+    }
+  };
+  const CardMask board_mask = mask_of(board, board_size);
+  const int missing = 5 - board_size;
+  if (missing == 0) {
+    showdown(board_mask);
+  } else if (missing <= 2) {
+    for (int a = 0; a < kNumCards; ++a) {
+      const CardMask am = card_bit(static_cast<Card>(a));
+      if (known & am) continue;
+      if (missing == 1) {
+        showdown(board_mask | am);
+        continue;
+      }
+      for (int b = a + 1; b < kNumCards; ++b) {
+        const CardMask bm = card_bit(static_cast<Card>(b));
+        if (known & bm) continue;
+        showdown(board_mask | am | bm);
+      }
+    }
+  } else {
+    Rng rng(seed);
+    for (int s = 0; s < samples; ++s) {
+      CardMask b5 = board_mask;
+      for (int k = 0; k < missing;) {
+        const CardMask c = card_bit(static_cast<Card>(rng.below(kNumCards)));
+        if ((known | b5) & c) continue;
+        b5 |= c;
+        ++k;
+      }
+      showdown(b5);
+    }
+  }
+  return total > 0 ? won / total : 0.5;
 }
 
 int nearest(const float* x, const float* centroids, int k, int dims) {

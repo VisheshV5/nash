@@ -7,6 +7,7 @@
 
 #include "regret/cfr/best_response.hpp"
 #include "regret/cfr/mccfr.hpp"
+#include "regret/games/nlhe.hpp"
 
 namespace regret {
 
@@ -21,8 +22,18 @@ class CfrSolver {
   virtual std::size_t memory_bytes() const = 0;
   virtual int num_players() const = 0;
 
-  // Exact NashConv of the average strategy (small games only).
+  // Exact NashConv of the average strategy (small games only; throws otherwise).
   virtual NashConvResult nash_conv() const = 0;
+  // Average strategy at one infoset; empty if never visited.
+  virtual std::vector<double> strategy(std::uint64_t key) const = 0;
+
+  // Whole average strategy in flat arrays: sorted keys, offsets (size + 1) into probs.
+  struct StrategyArrays {
+    std::vector<std::uint64_t> keys;
+    std::vector<std::uint32_t> offsets;
+    std::vector<float> probs;
+  };
+  virtual StrategyArrays export_strategy() const = 0;
   // (key, average strategy) for every visited infoset, sorted by key.
   virtual std::vector<std::pair<std::uint64_t, std::vector<double>>> average_strategy() const = 0;
 
@@ -33,5 +44,11 @@ class CfrSolver {
 
 // Games: "kuhn" (2 players), "kuhn3", "leduc".
 std::unique_ptr<CfrSolver> make_solver(const std::string& game, const CfrParams& params);
+
+// No-limit hold'em with the given table, action abstraction and card bucket tables.
+std::unique_ptr<CfrSolver> make_nlhe_solver(const TableRules& rules,
+                                            const abstraction::ActionRules& actions,
+                                            std::shared_ptr<const games::NlheTables> tables,
+                                            const CfrParams& params);
 
 }  // namespace regret

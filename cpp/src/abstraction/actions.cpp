@@ -7,14 +7,6 @@
 namespace regret::abstraction {
 namespace {
 
-int raises_this_street(const HandState& s) {
-  int n = 0;
-  for (const HistoryEntry& e : s.history()) {
-    if (e.street == s.street() && e.action.type == ActionType::kBetRaise) ++n;
-  }
-  return n;
-}
-
 // Last to act postflop among players still in the hand.
 bool in_position(const HandState& s, int seat) {
   const int n = s.num_players();
@@ -57,7 +49,7 @@ std::vector<Action> abstract_actions(const HandState& s, const ActionRules& rule
   if (!la.bet_raise) return out;
 
   const Chips cur = s.current_bet();
-  const int raises = raises_this_street(s);
+  const int raises = s.raises_this_street();
   std::vector<double> targets;  // raise-to amounts, in chips
   bool all_in = true;
   if (s.street() == Street::kPreflop) {
@@ -118,9 +110,24 @@ std::vector<std::pair<int, double>> translate(const HandState& s, const ActionRu
   for (int i = 0; i < static_cast<int>(acts.size()); ++i) {
     if (acts[i].type == ActionType::kBetRaise && acts[i].amount == actual.amount) return {{i, 1.0}};
   }
+  return translate_bet(s, rules, pot_fraction(s, actual.amount),
+                       actual.amount == s.legal_actions().max_raise_to);
+}
+
+std::vector<std::pair<int, double>> translate_bet(const HandState& s, const ActionRules& rules,
+                                                  double x, bool all_in) {
+  const std::vector<Action> acts = abstract_actions(s, rules);
+  if (acts.empty()) throw std::invalid_argument("translate_bet: no player to act");
+  const LegalActions la = s.legal_actions();
+  int last_raise = -1;
+  for (int i = 0; i < static_cast<int>(acts.size()); ++i) {
+    if (acts[i].type == ActionType::kBetRaise) last_raise = i;
+  }
+  const int call = acts[0].type == ActionType::kFold ? 1 : 0;
+  if (last_raise < 0) return {{call, 1.0}};  // no raising in this abstract state: treat as a call
+  if (all_in && acts[last_raise].amount == la.max_raise_to) return {{last_raise, 1.0}};
   // Neighbours by pot fraction; check/call is size 0.
-  const double x = pot_fraction(s, actual.amount);
-  int lo = index_of(ActionType::kCheckCall);
+  int lo = call;
   double lo_f = 0.0;
   for (int i = 0; i < static_cast<int>(acts.size()); ++i) {
     if (acts[i].type != ActionType::kBetRaise) continue;

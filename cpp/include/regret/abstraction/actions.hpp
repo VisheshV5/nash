@@ -52,4 +52,9 @@ double pseudo_harmonic(double a, double b, double x);
 std::vector<std::pair<int, double>> translate(const HandState& s, const ActionRules& rules,
                                               const Action& actual);
 
+// The same, for an action taken in a *different* state (e.g. the real game while `s` is the
+// abstract game): the bet is given by its pot fraction, and an all-in maps to all-in.
+std::vector<std::pair<int, double>> translate_bet(const HandState& s, const ActionRules& rules,
+                                                  double pot_fraction, bool all_in);
+
 }  // namespace regret::abstraction

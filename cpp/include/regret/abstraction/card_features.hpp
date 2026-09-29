@@ -53,6 +53,14 @@ void river_ochs_one(Card h0, Card h1, const Card* board5, const std::uint8_t* cl
                     float* out);
 void turn_histogram_one(Card h0, Card h1, const Card* board4, int bins, std::uint8_t* out);
 
+// ---- equity vs a range (evaluation bots, LBR)
+
+// Showdown equity of (h0, h1) against an opponent range `weights` (kNumHoles entries; blocked
+// holes are ignored), averaged over the rest of the board: every runout when the board has 3+
+// cards, else `samples` random boards. Returns 0.5 if the range is empty.
+double equity_vs_range(Card h0, Card h1, const Card* board, int board_size, const float* weights,
+                       int samples, std::uint64_t seed);
+
 // ---- helpers
 
 // Squared-L2 nearest centroid of `x` (dims) among `k` centroids (row-major k * dims).

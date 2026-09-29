@@ -2,6 +2,8 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
 
 #include "regret/games/kuhn.hpp"
 #include "regret/games/leduc.hpp"
@@ -10,6 +12,12 @@ namespace regret {
 namespace {
 
 constexpr char kMagic[8] = {'R', 'G', 'T', 'C', 'F', 'R', '0', '1'};
+
+// Games that enumerate their deals support exact best response.
+template <class G, class = void>
+constexpr bool kEnumerable = false;
+template <class G>
+constexpr bool kEnumerable<G, std::void_t<decltype(std::declval<const G&>().deal(0))>> = true;
 
 template <class Game>
 class SolverImpl final : public CfrSolver {
@@ -25,8 +33,35 @@ class SolverImpl final : public CfrSolver {
   int num_players() const override { return mccfr_.game().num_players(); }
 
   NashConvResult nash_conv() const override {
-    BestResponse<Game> br(mccfr_.game(), mccfr_.store());
-    return br.nash_conv();
+    if constexpr (kEnumerable<Game>) {
+      BestResponse<Game> br(mccfr_.game(), mccfr_.store());
+      return br.nash_conv();
+    } else {
+      throw std::logic_error("exact exploitability is only available for small games");
+    }
+  }
+
+  StrategyArrays export_strategy() const override {
+    StrategyArrays out;
+    out.keys = mccfr_.store().sorted_keys();
+    out.offsets.reserve(out.keys.size() + 1);
+    out.offsets.push_back(0);
+    double buf[InfosetStore::kMaxActions];
+    for (std::uint64_t key : out.keys) {
+      const int n = mccfr_.store().find(key).num_actions;
+      regret::average_strategy(mccfr_.store(), key, n, buf);
+      for (int a = 0; a < n; ++a) out.probs.push_back(static_cast<float>(buf[a]));
+      out.offsets.push_back(static_cast<std::uint32_t>(out.probs.size()));
+    }
+    return out;
+  }
+
+  std::vector<double> strategy(std::uint64_t key) const override {
+    const InfosetStore::Slot slot = mccfr_.store().find(key);
+    if (!slot.data) return {};
+    std::vector<double> probs(slot.num_actions);
+    regret::average_strategy(mccfr_.store(), key, slot.num_actions, probs.data());
+    return probs;
   }
 
   std::vector<std::pair<std::uint64_t, std::vector<double>>> average_strategy() const override {
@@ -64,6 +99,14 @@ class SolverImpl final : public CfrSolver {
 };
 
 }  // namespace
+
+std::unique_ptr<CfrSolver> make_nlhe_solver(const TableRules& rules,
+                                            const abstraction::ActionRules& actions,
+                                            std::shared_ptr<const games::NlheTables> tables,
+                                            const CfrParams& params) {
+  return std::make_unique<SolverImpl<games::Nlhe>>(games::Nlhe(rules, actions, std::move(tables)),
+                                                   params);
+}
 
 std::unique_ptr<CfrSolver> make_solver(const std::string& game, const CfrParams& params) {
   if (game == "kuhn") return std::make_unique<SolverImpl<games::Kuhn>>(games::Kuhn(2), params);

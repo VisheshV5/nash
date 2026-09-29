@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,7 +45,11 @@ RIVER_ROWS_PER_BOARD = 1081
 TURN_ROWS_PER_BOARD = 1128
 
 
-def artifact_dir(cfg: CardAbstractionConfig, root: Path = Path("artifacts/abstraction")) -> Path:
+def artifact_dir(cfg: CardAbstractionConfig, root: Path | None = None) -> Path:
+    """Where the abstraction for `cfg` lives: $REGRET_ARTIFACTS (default ./artifacts)/abstraction/
+    <hash of the cards config>."""
+    if root is None:
+        root = Path(os.environ.get("REGRET_ARTIFACTS", "artifacts")) / "abstraction"
     return root / cfg.config_hash()
 
 

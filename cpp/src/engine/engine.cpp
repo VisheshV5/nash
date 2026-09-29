@@ -9,7 +9,10 @@
 
 namespace regret {
 
-HandState::HandState(const TableRules& rules) : rules_(rules) {
+HandState::HandState(const TableRules& rules, bool record_history)
+    : small_blind_(rules.small_blind),
+      big_blind_(rules.big_blind),
+      record_history_(record_history) {
   const int n = static_cast<int>(rules.starting_stacks.size());
   if (n < kMinPlayers || n > kMaxPlayers) {
     throw std::invalid_argument("HandState: need 2-6 players, got " + std::to_string(n));
@@ -21,11 +24,12 @@ HandState::HandState(const TableRules& rules) : rules_(rules) {
     if (s <= 0) throw std::invalid_argument("HandState: starting stacks must be positive");
   }
 
-  stacks_ = rules.starting_stacks;
-  bets_.assign(n, 0);
-  contributed_.assign(n, 0);
-  statuses_.assign(n, PlayerStatus::kActive);
-  acted_.assign(n, false);
+  n_ = n;
+  statuses_.fill(PlayerStatus::kFolded);
+  for (int i = 0; i < n; ++i) {
+    starting_[i] = stacks_[i] = rules.starting_stacks[i];
+    statuses_[i] = PlayerStatus::kActive;
+  }
 
   const Chips blinds[2] = {rules.small_blind, rules.big_blind};
   for (int seat = 0; seat < 2; ++seat) {
@@ -51,28 +55,27 @@ int HandState::non_folded() const {
 
 void HandState::start_street(Street s) {
   street_ = s;
-  std::fill(acted_.begin(), acted_.end(), false);
+  acted_.fill(false);
   raise_increment_ = 0;
-  short_all_ins_.clear();
+  short_all_in_sum_ = 0;
+  raises_this_street_ = 0;
 
   const int n = num_players();
   const int opener = s == Street::kPreflop ? 2 % n : (button() + 1) % n;
-  queue_.clear();
+  queue_clear();
   for (int k = 0; k < n; ++k) {
     const int seat = (opener + k) % n;
-    if (statuses_[seat] == PlayerStatus::kActive && effective_stack(seat) > 0) {
-      queue_.push_back(seat);
-    }
+    if (statuses_[seat] == PlayerStatus::kActive && effective_stack(seat) > 0) queue_push(seat);
   }
   // Nobody to act, or a lone player who already matches the bet (e.g. everyone else all-in).
-  if (queue_.empty() || (queue_.size() == 1 && bets_[queue_.front()] >= current_bet())) {
+  if (queue_size_ == 0 || (queue_size_ == 1 && bets_[queue_[queue_head_]] >= current_bet())) {
     end_betting_round();
   }
 }
 
 void HandState::end_betting_round() {
-  queue_.clear();
-  std::fill(bets_.begin(), bets_.end(), 0);
+  queue_clear();
+  bets_.fill(0);
 
   const int with_chips =
       static_cast<int>(std::count_if(statuses_.begin(), statuses_.end(),
@@ -104,9 +107,8 @@ Chips HandState::effective_stack(int seat) const {
 
 bool HandState::can_raise(int seat) const {
   const Chips cur = current_bet();
-  if (!short_all_ins_.empty() && acted_[seat]) {
-    const Chips sum = std::accumulate(short_all_ins_.begin(), short_all_ins_.end(), Chips{0});
-    if (sum < raise_increment_) return false;  // short all-in didn't reopen the action
+  if (short_all_in_sum_ > 0 && acted_[seat] && short_all_in_sum_ < raise_increment_) {
+    return false;  // short all-in didn't reopen the action
   }
   if (stacks_[seat] <= cur - bets_[seat]) return false;  // can only call (all-in) anyway
   for (int i = 0; i < num_players(); ++i) {
@@ -128,7 +130,7 @@ LegalActions HandState::legal_actions() const {
   if (can_raise(seat)) {
     la.bet_raise = true;
     la.max_raise_to = stacks_[seat] + bets_[seat];
-    la.min_raise_to = std::min(la.max_raise_to, cur + std::max(raise_increment_, rules_.big_blind));
+    la.min_raise_to = std::min(la.max_raise_to, cur + std::max(raise_increment_, big_blind_));
   }
   return la;
 }
@@ -152,14 +154,15 @@ const char* HandState::why_illegal(const Action& a) const {
 }
 
 void HandState::pop_actor() {
-  acted_[queue_.front()] = true;
-  queue_.pop_front();
+  acted_[queue_[queue_head_]] = true;
+  queue_head_ = static_cast<std::int8_t>((queue_head_ + 1) % kMaxPlayers);
+  --queue_size_;
 }
 
 void HandState::apply(const Action& a) {
   if (const char* why = why_illegal(a)) throw std::invalid_argument(why);
   const int seat = to_act();
-  history_.push_back({street_, seat, a});
+  if (record_history_) history_.push_back({street_, seat, a});
 
   switch (a.type) {
     case ActionType::kFold:
@@ -184,42 +187,36 @@ void HandState::apply(const Action& a) {
       bets_[seat] = a.amount;
       contributed_[seat] += delta;
       pop_actor();
+      ++raises_this_street_;
       if (stacks_[seat] == 0) statuses_[seat] = PlayerStatus::kAllIn;
 
       // Everyone else with chips acts again.
-      queue_.clear();
+      queue_clear();
       const int n = num_players();
       for (int k = 1; k < n; ++k) {
         const int s = (seat + k) % n;
-        if (statuses_[s] == PlayerStatus::kActive) queue_.push_back(s);
+        if (statuses_[s] == PlayerStatus::kActive) queue_push(s);
       }
 
       const Chips increment = a.amount - prev;
       if (increment >= raise_increment_) {  // full raise: reopens raising for everyone
-        std::fill(acted_.begin(), acted_.end(), false);
+        acted_.fill(false);
         acted_[seat] = true;
       }
       raise_increment_ = std::max(raise_increment_, increment);
-      if (stacks_[seat] > 0) {
-        short_all_ins_.clear();
-      } else {
-        short_all_ins_.push_back(increment);
-      }
-      if (std::accumulate(short_all_ins_.begin(), short_all_ins_.end(), Chips{0}) >=
-          raise_increment_) {
-        short_all_ins_.clear();
-      }
+      short_all_in_sum_ = stacks_[seat] > 0 ? 0 : short_all_in_sum_ + increment;
+      if (short_all_in_sum_ >= raise_increment_) short_all_in_sum_ = 0;
       break;
     }
   }
 
-  if (queue_.empty() || non_folded() <= 1) end_betting_round();
+  if (queue_size_ == 0 || non_folded() <= 1) end_betting_round();
 }
 
 std::vector<Pot> HandState::pots() const {
   std::vector<Chips> levels;
-  for (Chips c : contributed_) {
-    if (c > 0) levels.push_back(c);
+  for (int i = 0; i < num_players(); ++i) {
+    if (contributed_[i] > 0) levels.push_back(contributed_[i]);
   }
   std::sort(levels.begin(), levels.end());
   levels.erase(std::unique(levels.begin(), levels.end()), levels.end());

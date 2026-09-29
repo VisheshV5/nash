@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstdint>
-#include <deque>
 #include <vector>
 
 #include "regret/cards.hpp"
@@ -71,19 +70,24 @@ struct HistoryEntry {
 //   * at showdown, hands that win nothing are mucked and pots left with the same contenders
 //     are combined before splitting; odd chips go to the first winner clockwise from the
 //     button.
+//
+// The state is a flat value type (no heap allocation unless history is recorded), because CFR
+// copies it at every node.
 class HandState {
  public:
-  explicit HandState(const TableRules& rules);
+  explicit HandState(const TableRules& rules, bool record_history = true);
 
-  int num_players() const { return static_cast<int>(stacks_.size()); }
-  int button() const { return num_players() == 2 ? 0 : num_players() - 1; }
-  const TableRules& rules() const { return rules_; }
+  int num_players() const { return n_; }
+  int button() const { return n_ == 2 ? 0 : n_ - 1; }
+  Chips small_blind() const { return small_blind_; }
+  Chips big_blind() const { return big_blind_; }
+  Chips starting_stack(int seat) const { return starting_[seat]; }
 
   Street street() const { return street_; }
   bool is_terminal() const { return terminal_; }
   // Terminal with 2+ players left: needs a showdown (board may need running out).
   bool is_showdown() const { return terminal_ && non_folded() >= 2; }
-  int to_act() const { return queue_.empty() || terminal_ ? -1 : queue_.front(); }
+  int to_act() const { return queue_size_ == 0 || terminal_ ? -1 : queue_[queue_head_]; }
 
   Chips stack(int seat) const { return stacks_[seat]; }
   Chips bet(int seat) const { return bets_[seat]; }                 // this street
@@ -92,6 +96,9 @@ class HandState {
   Chips current_bet() const;
   Chips pot() const;  // everything put in so far, including this street's bets
   int non_folded() const;
+  // Bets and raises so far on this street (the blinds don't count).
+  int raises_this_street() const { return raises_this_street_; }
+  // Empty unless constructed with record_history.
   const std::vector<HistoryEntry>& history() const { return history_; }
 
   LegalActions legal_actions() const;
@@ -112,18 +119,30 @@ class HandState {
   void pop_actor();
   void end_betting_round();
   void start_street(Street s);
+  void queue_clear() { queue_head_ = queue_size_ = 0; }
+  void queue_push(int seat) {
+    queue_[(queue_head_ + queue_size_++) % kMaxPlayers] = static_cast<std::int8_t>(seat);
+  }
 
-  TableRules rules_;
+  using Seats = std::array<Chips, kMaxPlayers>;
+  int n_ = 0;
+  Chips small_blind_ = 0;
+  Chips big_blind_ = 0;
   Street street_ = Street::kPreflop;
   bool terminal_ = false;
-  std::vector<Chips> stacks_;
-  std::vector<Chips> bets_;
-  std::vector<Chips> contributed_;
-  std::vector<PlayerStatus> statuses_;
-  std::deque<int> queue_;  // seats still to act this round, in order
-  std::vector<bool> acted_;
+  bool record_history_ = true;
+  Seats starting_{};
+  Seats stacks_{};
+  Seats bets_{};
+  Seats contributed_{};
+  std::array<PlayerStatus, kMaxPlayers> statuses_{};  // seats >= n are kFolded
+  std::array<bool, kMaxPlayers> acted_{};
+  std::array<std::int8_t, kMaxPlayers> queue_{};  // seats still to act this round (ring)
+  std::int8_t queue_head_ = 0;
+  std::int8_t queue_size_ = 0;
+  std::int8_t raises_this_street_ = 0;
   Chips raise_increment_ = 0;
-  std::vector<Chips> short_all_ins_;
+  Chips short_all_in_sum_ = 0;  // consecutive short all-in raises since the last full one
   std::vector<HistoryEntry> history_;
 };
 

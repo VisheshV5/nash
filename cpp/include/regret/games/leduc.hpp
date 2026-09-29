@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "regret/cfr/rng.hpp"
+
 namespace regret::games {
 
 // Two-player Leduc hold'em: 6 cards (J, Q, K in two suits), ante 1 each, one private card each,
@@ -48,6 +50,8 @@ class Leduc {
     s.board = static_cast<std::uint8_t>(picked[2] / 2);
     return s;
   }
+
+  State sample_deal(Rng& rng) const { return deal(static_cast<int>(rng.below(num_deals()))); }
 
   bool is_terminal(const State& s) const { return s.done; }
   int current_player(const State& s) const { return s.to_act; }

@@ -225,10 +225,13 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("eligible", &regret::Pot::eligible);
 
   py::class_<regret::HandState>(m, "HandState", "No-limit hold'em betting state for 2-6 seats.")
-      .def(py::init([](std::vector<regret::Chips> stacks, regret::Chips sb, regret::Chips bb) {
-             return regret::HandState(regret::TableRules{std::move(stacks), sb, bb});
+      .def(py::init([](std::vector<regret::Chips> stacks, regret::Chips sb, regret::Chips bb,
+                       bool record_history) {
+             return regret::HandState(regret::TableRules{std::move(stacks), sb, bb},
+                                      record_history);
            }),
-           py::arg("starting_stacks"), py::arg("small_blind"), py::arg("big_blind"))
+           py::arg("starting_stacks"), py::arg("small_blind"), py::arg("big_blind"),
+           py::arg("record_history") = true)
       .def_property_readonly("num_players", &regret::HandState::num_players)
       .def_property_readonly("button", &regret::HandState::button)
       .def_property_readonly("street", &regret::HandState::street)
@@ -352,6 +355,23 @@ PYBIND11_MODULE(_core, m) {
           },
           "Exact NashConv of the average strategy (small games only).")
       .def("average_strategy", &regret::CfrSolver::average_strategy)
+      .def("strategy", &regret::CfrSolver::strategy, py::arg("key"),
+           "Average strategy at one infoset (empty if never visited).")
+      .def(
+          "export_strategy",
+          [](const regret::CfrSolver& s) {
+            regret::CfrSolver::StrategyArrays a;
+            {
+              py::gil_scoped_release release;
+              a = s.export_strategy();
+            }
+            return py::make_tuple(
+                py::array_t<std::uint64_t>(static_cast<py::ssize_t>(a.keys.size()), a.keys.data()),
+                py::array_t<std::uint32_t>(static_cast<py::ssize_t>(a.offsets.size()),
+                                           a.offsets.data()),
+                py::array_t<float>(static_cast<py::ssize_t>(a.probs.size()), a.probs.data()));
+          },
+          "(keys, offsets, probs): the average strategy as flat arrays, keys sorted.")
       .def("save", [](const regret::CfrSolver& s) { return py::bytes(s.save()); })
       .def(
           "load", [](regret::CfrSolver& s, const py::bytes& b) { s.load(std::string(b)); },
@@ -556,4 +576,67 @@ PYBIND11_MODULE(_core, m) {
   m.def("pot_fraction", &ab::pot_fraction, py::arg("state"), py::arg("to"));
   m.def("pseudo_harmonic", &ab::pseudo_harmonic, py::arg("a"), py::arg("b"), py::arg("x"));
   m.def("translate", &ab::translate, py::arg("state"), py::arg("rules"), py::arg("action"));
+  m.def("translate_bet", &ab::translate_bet, py::arg("state"), py::arg("rules"),
+        py::arg("pot_fraction"), py::arg("all_in"));
+  m.def(
+      "equity_vs_range",
+      [](const std::vector<int>& hole, const std::vector<int>& board, const F32Array& weights,
+         int samples, std::uint64_t seed) {
+        if (hole.size() != 2) throw py::value_error("need 2 hole cards");
+        if (weights.size() != ab::kNumHoles) throw py::value_error("weights need 1326 entries");
+        std::vector<int> all(hole);
+        all.insert(all.end(), board.begin(), board.end());
+        const auto cards = checked_cards(all);
+        py::gil_scoped_release release;
+        return ab::equity_vs_range(cards[0], cards[1], cards.data() + 2,
+                                   static_cast<int>(board.size()), weights.data(), samples, seed);
+      },
+      py::arg("hole"), py::arg("board"), py::arg("weights"), py::arg("samples") = 1000,
+      py::arg("seed") = 0,
+      "Equity vs a weighted range: exact over runouts from the flop on, sampled preflop.");
+
+  // ---- hold'em blueprint training
+  m.def(
+      "NlheSolver",
+      [](std::vector<regret::Chips> stacks, regret::Chips small_blind, regret::Chips big_blind,
+         const ab::ActionRules& rules, const U16Array& flop, const U16Array& turn,
+         const U16Array& river, std::uint64_t seed, int threads, std::int64_t lcfr_until,
+         std::int64_t discount_interval, std::int64_t prune_after, double prune_probability,
+         float prune_threshold, float regret_floor, std::size_t max_infosets) {
+        if (threads < 1) throw py::value_error("threads must be >= 1");
+        if (discount_interval < 1) throw py::value_error("discount_interval must be >= 1");
+        auto tables = std::make_shared<regret::games::NlheTables>();
+        tables->flop.assign(flop.data(), flop.data() + flop.size());
+        tables->turn.assign(turn.data(), turn.data() + turn.size());
+        tables->river.assign(river.data(), river.data() + river.size());
+        regret::CfrParams p;
+        p.seed = seed;
+        p.threads = threads;
+        p.lcfr_until = lcfr_until;
+        p.discount_interval = discount_interval;
+        p.prune_after = prune_after;
+        p.prune_probability = prune_probability;
+        p.prune_threshold = prune_threshold;
+        p.regret_floor = regret_floor;
+        p.max_infosets = max_infosets;
+        return regret::make_nlhe_solver(
+            regret::TableRules{std::move(stacks), small_blind, big_blind}, rules, std::move(tables),
+            p);
+      },
+      py::arg("starting_stacks"), py::arg("small_blind"), py::arg("big_blind"), py::arg("rules"),
+      py::arg("flop_table"), py::arg("turn_table"), py::arg("river_table"), py::arg("seed") = 0,
+      py::arg("threads") = 1, py::arg("lcfr_until") = 0, py::arg("discount_interval") = 1000,
+      py::arg("prune_after") = -1, py::arg("prune_probability") = 0.95,
+      py::arg("prune_threshold") = -1e9f, py::arg("regret_floor") = -1e30f,
+      py::arg("max_infosets") = std::size_t{1} << 20,
+      "MCCFR solver for no-limit hold'em over a card + action abstraction.");
+  m.def("nlhe_history_root", [] { return regret::games::Nlhe::kHistoryRoot; });
+  m.def("nlhe_extend_history", &regret::games::Nlhe::extend_history, py::arg("history"),
+        py::arg("action_index"));
+  m.def(
+      "nlhe_infoset_key",
+      [](std::uint64_t history, int bucket) {
+        return regret::games::Nlhe::infoset_key(history, bucket);
+      },
+      py::arg("history"), py::arg("bucket"));
 }

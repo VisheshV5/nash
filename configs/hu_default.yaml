@@ -36,11 +36,18 @@ training:
   checkpoint_every_minutes: 15
   keep_last_checkpoints: 2
 
-cfr:                    # provisional until the M4 throughput benchmark
-  lcfr_until_iteration: 0
-  discount_interval: 1000
-  prune_after_iteration: null
-  max_infosets: 1048576
+cfr:                    # provisional: final sizing agreed before the long run (M4)
+  lcfr_until_iteration: 100000000     # ~12 min at 138k it/s on 6 threads
+  discount_interval: 1000000
+  prune_after_iteration: 200000000
+  prune_probability: 0.95
+  prune_threshold: -10000             # big blinds of regret
+  regret_floor: -30000
+  max_infosets: 4000000               # planner: 3.1M worst case
+
+eval:
+  every_minutes: 30
+  hands: 2000
 
 search:
   enabled: true

@@ -8,6 +8,7 @@ which keeps the shipped bundle small.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,7 @@ class CardAbstraction:
     def buckets(self) -> dict[str, int]:
         return dict(self.manifest["buckets"])
 
-    def bucket(self, hole: str | list[CardLike], board: str | list[CardLike] = "") -> int:
+    def bucket(self, hole: str | Sequence[CardLike], board: str | Sequence[CardLike] = "") -> int:
         h, b = to_ids(hole), to_ids(board)
         street = _STREET_BY_BOARD.get(len(b))
         if street is None or len(h) != 2:

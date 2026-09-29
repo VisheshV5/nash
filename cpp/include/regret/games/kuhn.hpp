@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <stdexcept>
 
+#include "regret/cfr/rng.hpp"
+
 namespace regret::games {
 
 // N-player Kuhn poker (N = 2 or 3): N + 1 cards, ante 1, one betting round with a single bet of
@@ -46,6 +48,8 @@ class Kuhn {
     }
     return s;
   }
+
+  State sample_deal(Rng& rng) const { return deal(static_cast<int>(rng.below(num_deals()))); }
 
   bool is_terminal(const State& s) const {
     if (s.bettor < 0) return s.len == n_;
