@@ -328,3 +328,26 @@ def test_kill_9_never_corrupts_the_latest_checkpoint(tmp_path: Path) -> None:
     after = latest_checkpoint(run_dir / "checkpoints")
     assert after is not None
     assert after.iteration == before.iteration + 50_000
+
+
+def test_status_shows_holdem_eval(tmp_path: Path) -> None:
+    rows = [
+        {"event": "start", "time": "t", "iteration": 0, "target": None},
+        {
+            "event": "eval",
+            "time": "t",
+            "iteration": 5,
+            "vs_random_mbb": 850.0,
+            "vs_random_ci95": 300.0,
+            "unseen_infosets": 0,
+            "fallbacks": 0,
+        },
+    ]
+    (tmp_path / "metrics.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "status.py"), str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "random +850±300" in out

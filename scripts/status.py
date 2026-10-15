@@ -85,7 +85,17 @@ def status(run_dir: Path) -> str:
         ]
     if "eval" in last:
         e = last["eval"]
-        lines.append(f"eval       exploitability {e['exploitability']:.6f} @ {e['iteration']:,}")
+        if "exploitability" in e:
+            lines.append(
+                f"eval       exploitability {e['exploitability']:.6f} @ {e['iteration']:,}"
+            )
+        else:  # hold'em: win rates against the baseline bots
+            rates = [
+                f"{k[3:-4]} {e[k]:+,.0f}±{e[k[:-4] + '_ci95']:,.0f}"
+                for k in e
+                if k.startswith("vs_") and k.endswith("_mbb")
+            ]
+            lines.append(f"eval       mbb/hand @ {e['iteration']:,}: " + "  ".join(rates))
     ckpts = list_checkpoints(run_dir / "checkpoints")
     if ckpts:
         age = time.time() - ckpts[-1].stat().st_mtime
