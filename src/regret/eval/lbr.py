@@ -45,6 +45,14 @@ def board_buckets(cards: CardAbstraction, board: list[int]) -> NDArray[np.int64]
     idx = indexer(street).index_batch(rows)
     if street == "preflop":
         out[ok] = idx
+    elif street == "turn" and cards.turn_table is None:
+        # No table: features for every hole on this board in one pass, then nearest centroid.
+        assert cards.turn_centroids is not None
+        counts = _core.turn_histograms(board, cards.turn_bins).astype(np.float32)[ok]
+        cdf = np.cumsum(counts, 1) / np.maximum(counts.sum(1, keepdims=True), 1)
+        c = cards.turn_centroids
+        d = (c * c).sum(1)[None, :] - 2 * cdf @ c.T
+        out[ok] = d.argmin(1)
     else:
         table = {"flop": cards.flop_table, "turn": cards.turn_table}.get(street)
         if table is None:  # river: per hand from centroids (tables may not be loaded)

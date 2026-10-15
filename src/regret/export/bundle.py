@@ -5,7 +5,8 @@
       config.yaml        the hold'em config it was trained with
       strategy.npz       average strategy: one dense block per abstract decision node
                          (buckets x actions, uint8), compressed
-      cards/             card abstraction for runtime bucketing (river table left out)
+      cards/             card abstraction for runtime bucketing: flop table, turn and river
+                         centroids (their 28 MB / 250 MB tables are left out)
 
 Works on any checkpoint, including one from a run still in progress.
 """
@@ -34,8 +35,8 @@ _CARD_FILES = (
     "manifest.json",
     "cluster_of_hole.npy",
     "river_centroids.npy",
+    "turn_centroids.npy",
     "flop_table.npy",
-    "turn_table.npy",
 )
 
 

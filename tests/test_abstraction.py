@@ -102,7 +102,7 @@ def test_kmeans_is_deterministic_and_weighted() -> None:
 
 
 @pytest.fixture(scope="module")
-def tiny(tmp_path_factory: pytest.TempPathFactory) -> CardAbstraction:
+def tiny_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     cfg = CardAbstractionConfig(
         flop_buckets=6,
         turn_buckets=6,
@@ -112,7 +112,12 @@ def tiny(tmp_path_factory: pytest.TempPathFactory) -> CardAbstraction:
     )
     out = tmp_path_factory.mktemp("abs")
     build_card_abstraction(cfg, out, threads=6)
-    return CardAbstraction.load(out, river_table=True)
+    return out
+
+
+@pytest.fixture(scope="module")
+def tiny(tiny_dir: Path) -> CardAbstraction:
+    return CardAbstraction.load(tiny_dir, river_table=True)
 
 
 def test_tables_are_complete_and_use_every_bucket(tiny: CardAbstraction) -> None:
@@ -271,3 +276,17 @@ def test_same_seed_gives_identical_tables(tiny: CardAbstraction, tmp_path: Path)
     cfg = CardAbstractionConfig(**tiny.manifest["config"])
     again = build_card_abstraction(cfg, tmp_path, threads=3)  # thread count mustn't matter
     assert again["sha256"] == tiny.manifest["sha256"]
+
+
+def test_live_turn_buckets_match_the_table(tiny_dir: Path) -> None:
+    from regret.eval.lbr import board_buckets
+
+    table = CardAbstraction.load(tiny_dir)
+    live = CardAbstraction.load(tiny_dir)
+    live.turn_table = None
+    rng = np.random.default_rng(11)
+    for _ in range(6):
+        cards = rng.choice(52, 6, replace=False).tolist()
+        hole, board = cards[:2], cards[2:]
+        assert live.bucket(hole, board) == table.bucket(hole, board)
+        np.testing.assert_array_equal(board_buckets(live, board), board_buckets(table, board))

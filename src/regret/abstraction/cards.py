@@ -1,8 +1,9 @@
 """Runtime card bucketing from a built abstraction (see regret.abstraction.build).
 
-Preflop buckets are the 169 hand classes; flop and turn come from lookup tables; river comes
-from the training table when loaded, otherwise from OCHS features + nearest centroid (~15 µs),
-which keeps the shipped bundle small.
+Preflop buckets are the 169 hand classes and the flop comes from a lookup table. Turn and river
+come from their tables when loaded (training, evaluation on the build machine); a shipped bundle
+leaves those tables out and computes features + nearest centroid instead (turn ~0.5 ms, river
+~15 µs), which keeps it small.
 """
 
 from __future__ import annotations
@@ -28,8 +29,9 @@ class CardAbstraction:
     cluster_of_hole: NDArray[np.uint8]
     river_centroids: NDArray[np.float32]
     flop_table: NDArray[np.uint16]
-    turn_table: NDArray[np.uint16]
+    turn_table: NDArray[np.uint16] | None
     river_table: NDArray[np.uint16] | None
+    turn_centroids: NDArray[np.float32] | None = None
 
     @classmethod
     def load(cls, directory: Path, river_table: bool = False) -> CardAbstraction:
@@ -44,9 +46,24 @@ class CardAbstraction:
             cluster_of_hole=arr("cluster_of_hole"),
             river_centroids=arr("river_centroids"),
             flop_table=arr("flop_table"),
-            turn_table=arr("turn_table"),
+            turn_table=arr("turn_table") if (directory / "turn_table.npy").exists() else None,
             river_table=arr("river_table") if river_table else None,
+            turn_centroids=arr("turn_centroids")
+            if (directory / "turn_centroids.npy").exists()
+            else None,
         )
+
+    @property
+    def turn_bins(self) -> int:
+        return int(self.manifest["config"]["turn_bins"])
+
+    def turn_bucket_live(self, hole: list[int], board: list[int]) -> int:
+        """Turn bucket from features: river-equity histogram -> CDF -> nearest centroid."""
+        if self.turn_centroids is None:
+            raise ValueError("no turn table or turn centroids in this abstraction")
+        counts = _core.turn_histogram_one(hole, board, self.turn_bins).astype(np.float32)
+        cdf = np.cumsum(counts) / max(1.0, float(counts.sum()))
+        return int(((self.turn_centroids - cdf) ** 2).sum(1).argmin())
 
     @property
     def buckets(self) -> dict[str, int]:
@@ -63,7 +80,9 @@ class CardAbstraction:
         if street == "flop":
             return int(self.flop_table[idx])
         if street == "turn":
-            return int(self.turn_table[idx])
+            if self.turn_table is not None:
+                return int(self.turn_table[idx])
+            return self.turn_bucket_live(h, b)
         if self.river_table is not None:
             return int(self.river_table[idx])
         k = len(self.river_centroids[0])
