@@ -15,10 +15,28 @@ an all-in luck adjustment. These numbers are updated as the v1 blueprint trains.
 | MCCFR on Leduc hold'em | exploitability 0.0024 after 30M iterations |
 | River search vs theory (polarized bettor vs bluff catcher) | nuts always bet; bluffs:value 1:2; catcher calls 1/2 vs pot and 1/3 vs 2x pot |
 
-## Heads-up 100bb blueprint (training in progress)
+## Heads-up 100bb blueprint
 
-24.6M information sets, 500 buckets per postflop street. Trained on 6 threads at ~80k
-iterations/s. Bundle: 45 MB.
+24.6M information sets, 500 buckets per postflop street, trained on 6 threads.
+
+**Final blueprint** (`bundles/hu-100bb`): 10.73B iterations, 8.1 hours of training (plugged in
+only, over one night), 44 MB bundle. Training stopped 2026-10-15: past ~0.7B iterations no test
+separates the checkpoints (details below), so more laptop time wasn't buying measurable strength.
+
+| Measurement | Result (mbb/hand) |
+|---|---|
+| vs random, 20,000 hands | +1,332 ± 261 |
+| vs always-call, 20,000 hands | +1,640 ± 153 |
+| vs equity-threshold rule bot, 20,000 hands | +778 ± 194 |
+| vs 742M checkpoint, 30,000 hands | +21 ± 100 |
+| vs 9.58B checkpoint, 30,000 hands | -71 ± 92 |
+| LBR exploitability lower bound, 10,000 hands | 841 ± 272 |
+
+Every infoset the baselines' play reached had been visited in training (0 unseen); 2,557
+decisions over the 60,000 baseline hands left the abstract betting tree (mostly the random bot's
+odd sizes and raise counts) and fell back to check/call.
+
+### How it got there
 
 **After 1 hour (314M iterations)**, 6,000 hands per baseline:
 
@@ -116,6 +134,5 @@ days of laptop time, so it waits for the training run to finish.
 
 ## Still to measure
 
-- The blueprint after the full run, and LBR with larger samples.
 - River and turn search on the mature blueprint, idle machine, larger samples.
 - Slumbot (needs a 200bb blueprint; Slumbot plays 200bb stacks).

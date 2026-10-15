@@ -181,7 +181,7 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M1.
 
-### M4 — Heads-up blueprint + evaluation harness ★ (~4–5 days, +2–4 days compute)  🔄 *harness done 2026-09-28; 3-day blueprint run in progress*
+### M4 — Heads-up blueprint + evaluation harness ★ (~4–5 days, +2–4 days compute)  ✅ *done 2026-10-15: 10.73B iterations in 8.1 h; RESULTS.md*
 **Deliverables**
 - NLHE adapter for the MCCFR core. Preflop average strategy, postflop snapshots (D3).
 - `export.py`: checkpoint → agent bundle. Works mid-training.
@@ -195,6 +195,8 @@ Built for 2–6 players even though v1 trains only heads-up.
 - **LBR bets only the blueprint's own sizes (plus all-in) and only calls preflop.** That keeps its model of the blueprint's range exact, because the blueprint maps those bets back without randomness. It's a standard restriction; the result is still a lower bound on exploitability.
 - **Variance reduction is duplicate deals plus AIVAT's chance-node part (all-in EV over runouts).** Decision-node AIVAT corrections are deferred to M8 if the confidence intervals need tightening.
 - Off-tree play (e.g. more raises than the abstraction allows) falls back to check/call and is counted; M5's search is the real fix.
+
+*Closed (2026-10-15):* the blueprint beats all three baselines with significance. "Later checkpoints beat earlier ones" held up to ~0.7B iterations and then stopped being measurable (head-to-head within ±100 mbb/hand over 30,000 hands; LBR 934 → 867 → 801 → 841 within ±275), so training stopped at 10.73B after 8.1 hours instead of the planned 3 days.
 
 **Acceptance**
 - Beats all three baselines HU with the 95% CI excluding 0. Later checkpoints beat earlier ones.
