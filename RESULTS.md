@@ -42,6 +42,22 @@ With range-expected showdowns (LBR scores each showdown against the blueprint's 
 see `regret/eval/lbr.py`), same deals: 742M 957 ± 541, 3.03B 1,079 ± 506. The confidence
 interval narrows by about 11%, which isn't enough to separate the checkpoints.
 
+**6.13B iterations (~6 h), larger samples:**
+
+| Measurement | Result |
+|---|---|
+| 6.13B vs 742M, head-to-head | +5 ± 96 mbb/hand over 30,000 hands |
+| 6.13B vs 3.03B, head-to-head | -31 ± 93 mbb/hand over 30,000 hands |
+| LBR vs 6.13B (same 10,000 deals) | 867 ± 278 mbb/hand |
+| LBR vs 742M (same 10,000 deals) | 934 ± 267 mbb/hand |
+| 6.13B vs random / always-call / equity-threshold | +1,285 ± 368 / +1,706 ± 225 / +873 ± 281 (10,000 hands each) |
+
+Past ~0.7B iterations no measurement separates the checkpoints: head-to-head differences are
+under ~100 mbb/hand and LBR differences under ~300 mbb/hand at these sample sizes. Either the
+blueprint is near what this abstraction allows, or it is still improving by amounts these tests
+can't resolve. The 742M checkpoint (under 3 hours of training) plays as well as anything
+measured since.
+
 No measurable change: every difference is well inside the ±600 noise of a 3,000-hand LBR.
 Head-to-head the checkpoints are also even (742M vs 314M: -16 ± 159; 3.03B vs 742M: +68 ± 159,
 10,000 hands each). Against the baselines the 3.03B checkpoint wins +1,168 ± 480 (random),
