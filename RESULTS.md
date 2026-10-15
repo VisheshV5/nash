@@ -28,7 +28,18 @@ iterations/s. Bundle: 45 MB.
 | always-call | +1,792 ± 315 |
 | equity-threshold rule bot | +860 ± 366 |
 
-All three are significant wins. Head-to-head against the 167M-iteration checkpoint: -15 ± 235
+All three are significant wins.
+
+**Progress between checkpoints** (LBR on the same 3,000 hands, lower is better):
+
+| Checkpoint | Training time | LBR exploitability (lower bound) |
+|---|---|---|
+| 314M iterations | ~1 h | 1,323 ± 498 mbb/hand |
+| 742M iterations | ~2.7 h | 1,047 ± 606 mbb/hand |
+
+Heading down, not yet significant. Head-to-head the two are even (742M vs 314M: -16 ± 159
+mbb/hand over 10,000 hands): a blueprint this size changes slowly and this early the gains are
+small. Pruning starts at 1B iterations, which speeds training up. Head-to-head against the 167M-iteration checkpoint: -15 ± 235
 (no difference yet, as expected this early). LBR exploitability lower bound: 1,313 ± 1,169
 mbb/hand (600 hands; the restricted LBR described in ROADMAP M4).
 
