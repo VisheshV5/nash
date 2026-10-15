@@ -39,7 +39,11 @@ All three are significant wins.
 
 Heading down, not yet significant. Head-to-head the two are even (742M vs 314M: -16 ± 159
 mbb/hand over 10,000 hands): a blueprint this size changes slowly and this early the gains are
-small. Pruning starts at 1B iterations, which speeds training up. Head-to-head against the 167M-iteration checkpoint: -15 ± 235
+small.
+
+**Training speed:** ~80k iterations/s for the first billion iterations, then ~460k iterations/s
+once negative-regret pruning starts at 1B (95% of iterations skip actions with very negative
+regret): a 5.8x speed-up. Head-to-head against the 167M-iteration checkpoint: -15 ± 235
 (no difference yet, as expected this early). LBR exploitability lower bound: 1,313 ± 1,169
 mbb/hand (600 hands; the restricted LBR described in ROADMAP M4).
 
