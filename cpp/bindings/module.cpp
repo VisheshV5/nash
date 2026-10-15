@@ -13,6 +13,7 @@
 #include "regret/engine.hpp"
 #include "regret/evaluator.hpp"
 #include "regret/isomorphism.hpp"
+#include "regret/search/subgame.hpp"
 #include "regret/version.hpp"
 
 namespace py = pybind11;
@@ -644,4 +645,55 @@ PYBIND11_MODULE(_core, m) {
         return regret::games::Nlhe::infoset_key(history, bucket);
       },
       py::arg("history"), py::arg("bucket"));
+
+  // ---- real-time search
+  m.def(
+      "solve_river",
+      [=](const regret::HandState& start, const std::vector<int>& board,
+          const std::vector<regret::Action>& path, const F32Array& range0, const F32Array& range1,
+          std::vector<double> bet_pot, std::vector<double> raise_pot, int max_raises, bool all_in,
+          int min_iterations, int max_iterations, double max_seconds) {
+        namespace rs = regret::search;
+        if (board.size() != 5) throw py::value_error("the river needs a 5-card board");
+        if (range0.size() != rs::kHands || range1.size() != rs::kHands) {
+          throw py::value_error("ranges need 1326 entries");
+        }
+        rs::RiverProblem p;
+        p.start = start;
+        const auto b = checked_cards(board);
+        std::copy(b.begin(), b.end(), p.board.begin());
+        p.path = path;
+        std::copy(range0.data(), range0.data() + rs::kHands, p.range[0].begin());
+        std::copy(range1.data(), range1.data() + rs::kHands, p.range[1].begin());
+        p.actions.bet_pot = std::move(bet_pot);
+        p.actions.raise_pot = std::move(raise_pot);
+        p.actions.max_raises = max_raises;
+        p.actions.all_in = all_in;
+        p.min_iterations = min_iterations;
+        p.max_iterations = max_iterations;
+        p.max_seconds = max_seconds;
+        rs::RiverSolution sol;
+        {
+          py::gil_scoped_release release;
+          sol = rs::solve_river(p);
+        }
+        py::dict out;
+        out["actions"] = sol.actions;
+        out["player"] = sol.player;
+        out["strategy"] = f32(sol.strategy)
+                              .reshape({static_cast<py::ssize_t>(sol.actions.size()),
+                                        static_cast<py::ssize_t>(rs::kHands)});
+        out["values"] = f32(sol.values);
+        out["iterations"] = sol.iterations;
+        out["seconds"] = sol.seconds;
+        out["nodes"] = sol.nodes;
+        out["exploitability"] = sol.exploitability;
+        return out;
+      },
+      py::arg("start"), py::arg("board"), py::arg("path"), py::arg("range0"), py::arg("range1"),
+      py::arg("bet_pot") = std::vector<double>{0.33, 0.5, 0.75, 1.0, 1.5},
+      py::arg("raise_pot") = std::vector<double>{0.5, 1.0}, py::arg("max_raises") = 3,
+      py::arg("all_in") = true, py::arg("min_iterations") = 50, py::arg("max_iterations") = 2000,
+      py::arg("max_seconds") = 0.8,
+      "Re-solve the river (heads-up) from its start with exact hands; see regret/search.");
 }
