@@ -26,6 +26,7 @@ jobs:
           CIBW_BUILD: "cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* *i686"
           CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28  # current NumPy has no manylinux2014 wheels
           CIBW_ARCHS_MACOS: arm64
           MACOSX_DEPLOYMENT_TARGET: "11.0"
           CIBW_TEST_COMMAND: >-
