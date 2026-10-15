@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -57,7 +59,7 @@ def test_polarized_bettor_vs_bluff_catcher() -> None:
     # Seat 0 has a bluff catcher (A9: second pair). Only a pot-size bet is allowed.
     nuts, air, catcher = hands("86"), hands("QJ"), hands("A9")
     r0, r1 = range_of("A9"), range_of("86", "QJ")
-    menu = {"bet_pot": [1.0], "raise_pot": [], "max_raises": 1, "all_in": False}
+    menu: dict[str, Any] = {"bet_pot": [1.0], "raise_pot": [], "max_raises": 1, "all_in": False}
     root = _core.solve_river(
         river_start(),
         BOARD,
