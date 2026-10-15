@@ -110,7 +110,11 @@ flowchart LR
 - **Blueprint:** external-sampling MCCFR with Linear CFR and pruning, heads-up 100bb, 24.6M
   information sets.
 - **Search:** the river is re-solved at decision time over all 1,326 hands with a richer bet
-  menu, from ranges the blueprint implies.
+  menu, from ranges the blueprint implies. Turn re-solving (the river card as a chance node) is
+  available with `search.streets: [turn, river]`; neither has yet been shown to beat the blueprint
+  alone (RESULTS.md).
+- **Footprint:** 43 MB bundle, 0.4 s load, blueprint decisions in ~1 ms, river search within
+  the 1 s budget. Measured times for every phase are in [docs/compute.md](docs/compute.md).
 - **Evaluation:** baseline bots, duplicate matches with confidence intervals, and LBR
   exploitability. Results are in [RESULTS.md](RESULTS.md).
 
