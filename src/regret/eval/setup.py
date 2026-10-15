@@ -11,7 +11,7 @@ from regret.abstraction.build import artifact_dir
 from regret.abstraction.cards import CardAbstraction
 from regret.engine.state import CHIPS_PER_BB
 from regret.eval.match import duplicate_match
-from regret.eval.players import AlwaysCall, BlueprintPlayer, EquityThreshold, Player, RandomPlayer
+from regret.eval.players import BASELINE_FACTORIES, BlueprintPlayer, Player
 from regret.eval.strategy import SolverStrategy, StrategyTable
 from regret.utils.config import RegretConfig
 
@@ -38,11 +38,7 @@ def blueprint_player(
     return BlueprintPlayer(strategy, cards, rules_from_config(cfg.actions), stacks, sb, bb, name)
 
 
-BASELINES: dict[str, Callable[[], Player]] = {
-    "random": RandomPlayer,
-    "always-call": AlwaysCall,
-    "equity-threshold": EquityThreshold,
-}
+BASELINES: dict[str, Callable[[], Player]] = dict(BASELINE_FACTORIES)
 
 
 def baseline_report(

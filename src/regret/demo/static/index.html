@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Regret Table</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand"><span class="mark">♠</span> Regret <span class="sub">heads-up no-limit hold'em</span></div>
+    <div class="modes" role="tablist" aria-label="Mode">
+      <button id="mode-play" role="tab" aria-selected="true">Play</button>
+      <button id="mode-watch" role="tab" aria-selected="false">Watch</button>
+    </div>
+    <div class="score"><span id="hand-no">Hand 1</span> · Regret <b id="net">+0</b> bb</div>
+  </header>
+
+  <main class="layout">
+    <section class="table" aria-label="Table">
+      <div class="seat top" id="seat-top"></div>
+      <div class="felt">
+        <div class="pot" id="pot">Pot 1.5</div>
+        <div class="board" id="board"></div>
+        <div class="street" id="street">Preflop</div>
+      </div>
+      <div class="seat bottom" id="seat-bottom"></div>
+
+      <div class="controls" id="controls-play">
+        <div class="actions" id="actions"></div>
+        <div class="sizer" id="sizer" hidden>
+          <input type="range" id="size" min="0" max="100" step="0.5" aria-label="Bet size in big blinds">
+          <div class="presets" id="presets"></div>
+        </div>
+      </div>
+      <div class="controls" id="controls-watch" hidden>
+        <label>Opponent
+          <select id="opponent">
+            <option value="equity-threshold">Equity bot</option>
+            <option value="always-call">Always call</option>
+            <option value="random">Random</option>
+          </select>
+        </label>
+        <button id="step" class="primary">Next action</button>
+        <button id="auto">Auto-play</button>
+      </div>
+      <div class="result" id="result" hidden></div>
+    </section>
+
+    <aside class="panel" aria-label="Regret's last decision">
+      <h2>Regret's thinking</h2>
+      <p class="hint" id="decision-empty">Regret's decisions appear here: what it could do, how often it does each, and the numbers behind it.</p>
+      <div id="decisions"></div>
+      <h2>Hand history</h2>
+      <ol class="log" id="log"></ol>
+    </aside>
+  </main>
+  <p class="error" id="error" role="alert" hidden></p>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

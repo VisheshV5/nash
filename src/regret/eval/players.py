@@ -7,6 +7,7 @@ board)` on the player to act. `board` is the part of the board visible on the cu
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Protocol
 
 import numpy as np
@@ -37,6 +38,9 @@ class _Base:
 
     def observe(self, state: _core.HandState, seat: int, action: Action, board: list[int]) -> None:
         pass
+
+    def act(self, state: _core.HandState, board: list[int]) -> Action:
+        raise NotImplementedError
 
 
 class AlwaysCall(_Base):
@@ -237,3 +241,10 @@ class AgentPlayer(_Base):
         if rec["action"] in ("check", "call"):
             return Action.check_call()
         return Action.bet_raise_to(round(rec["amount"] * 100))
+
+
+BASELINE_FACTORIES: dict[str, Callable[[], Player]] = {
+    "random": RandomPlayer,
+    "always-call": AlwaysCall,
+    "equity-threshold": EquityThreshold,
+}

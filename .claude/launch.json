@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/demo.sh", "bundles/hu-smoke", "8765"],
+      "port": 8765
+    }
+  ]
+}
