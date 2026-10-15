@@ -70,6 +70,15 @@ default (`search.streets: [river]`) and can be turned on with `[turn, river]`. A
 separate a few tens of mbb/hand needs tens of thousands of hands at ~1 s per searched decision:
 days of laptop time, so it waits for the training run to finish.
 
+## v1 success criteria (SPEC §9), heads-up
+
+| Criterion | Status |
+|---|---|
+| Beats every baseline bot with significance | Met: the 3.03B blueprint beats random, always-call and the equity-threshold bot, every CI excluding 0. 6-max moved to v1.2. |
+| Subgame solving measurably beats blueprint-only | Not yet shown: river search +57 ± 206, turn and river search -114 ± 369 mbb/hand. |
+| Size ≤ 100 MB, latency ≤ 1 s on a laptop CPU | Met: 43 MB bundle; blueprint decisions ≤ 2.4 ms, river search p95 849 ms with training running ([docs/compute.md](docs/compute.md)). |
+| Library and REST API usable from a ~10-line script | Met: [examples/library.py](examples/library.py), [examples/rest.py](examples/rest.py), 12 lines each with imports, both run in CI. |
+
 ## Still to measure
 
 - The blueprint after the full run, and LBR with larger samples.

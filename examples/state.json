@@ -1,0 +1,13 @@
+{
+  "num_players": 2,
+  "hero_seat": "BB",
+  "hero_cards": ["Ah", "Kh"],
+  "street": "preflop",
+  "pot": 3.5,
+  "players": [
+    {"seat": "BTN", "stack": 97.5, "status": "active"},
+    {"seat": "BB", "stack": 99.0, "status": "active"}
+  ],
+  "action_history": {"preflop": [["BTN", "raise", 2.5]]},
+  "to_act": "BB"
+}

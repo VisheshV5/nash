@@ -227,7 +227,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 - `act(state, explain=True)` adds an `explain` object containing **only values the agent computed**: hero equity vs. the estimated range, hand bucket, a compact opponent-range summary (top hand classes + weights), per-action EV from the subgame solve (when `source` is `subgame_solve`), solver iterations, and the translation applied to an off-tree bet. No generated prose in the library.
 - In v1, inputs with `num_players > 2` return a clear `UnsupportedTableSize` error. Schema validation already handles 2–6.
 - FastAPI: `POST /act`, `GET /health`, `GET /info` (bundle version, config, abstraction hash), structured errors, request logging, Dockerfile.
-- `examples/library.py`, `examples/rest.py` (≤ 10 lines each), and a CLI demo that plays a heads-up hand vs. baselines.
+- `examples/library.py`, `examples/rest.py` (≤ 10 lines each), and a CLI demo that plays a heads-up hand vs. baselines. *(Examples added 2026-10-15, run in CI.)*
 
 **Acceptance:** both examples run from a clean install. API validation tests pass. OpenAPI docs are generated.
 **Depends on:** M4 (thin), M5 (full routing).

@@ -280,3 +280,53 @@ def test_search_player_plays_legal_hands(agent: RegretAgent) -> None:
     searcher = AgentPlayer(fast, stacks, sb, bb, search=True)
     duplicate_match(searcher, AlwaysCall(), 15, stacks, sb, bb, seed=5)  # raises on illegal play
     assert searcher.searches > 0
+
+
+# ---------------------------------------------------------------- the 10-line examples
+
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+
+
+def _run_example(*args: str) -> str:
+    import subprocess
+    import sys
+
+    out = subprocess.run(
+        [sys.executable, *args], capture_output=True, text=True, check=True, timeout=120
+    )
+    return out.stdout
+
+
+def test_library_example(bundle: Path) -> None:
+    lines = _run_example(
+        str(EXAMPLES / "library.py"), str(bundle), str(EXAMPLES / "state.json")
+    ).splitlines()
+    assert len(lines) == 2
+    assert "call" in lines[0]
+
+
+def test_rest_example(agent: RegretAgent) -> None:
+    import socket
+    import threading
+
+    import uvicorn
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(agent), host="127.0.0.1", port=port, log_level="warning")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    try:
+        while not server.started:
+            thread.join(0.05)
+        lines = _run_example(
+            str(EXAMPLES / "rest.py"), f"http://127.0.0.1:{port}", str(EXAMPLES / "state.json")
+        ).splitlines()
+    finally:
+        server.should_exit = True
+        thread.join(10)
+    assert len(lines) == 2
+    assert "call" in lines[0]

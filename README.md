@@ -33,6 +33,9 @@ decision.recommended  # e.g. {"action": "call", "amount": 2.5}
 decision.source  # "blueprint", or "subgame_solve" on the river
 ```
 
+The same as a script, and over HTTP: [examples/library.py](examples/library.py) and
+[examples/rest.py](examples/rest.py) (each under a dozen lines, both run in CI).
+
 `act(state, explain=True)` adds the numbers behind the decision (bucket, equity, how off-tree bets
 were translated, and on the river the solver's iterations and exploitability). `mode="argmax"`
 picks the most likely action instead of sampling; `seed` makes samples reproducible. The game
