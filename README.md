@@ -12,18 +12,25 @@ An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time se
 ```python
 from regret import RegretAgent
 
-agent = RegretAgent.load("bundles/hu-100bb")   # a bundle directory, or a registered name
-decision = agent.act({
-    "num_players": 2, "hero_seat": "BB", "hero_cards": ["Ah", "Kh"], "street": "preflop",
-    "pot": 3.5,
-    "players": [{"seat": "BTN", "stack": 97.5, "status": "active"},
-                {"seat": "BB", "stack": 99.0, "status": "active"}],
-    "action_history": {"preflop": [["BTN", "raise", 2.5]]},
-    "to_act": "BB",
-})
-decision.strategy      # e.g. {"fold": 0.02, "call": 0.61, "raise_3.5x": 0.3, "all_in": 0.07}
-decision.recommended   # e.g. {"action": "call", "amount": 2.5}
-decision.source        # "blueprint", or "subgame_solve" on the river
+agent = RegretAgent.load("bundles/hu-100bb")  # a bundle directory, or a registered name
+decision = agent.act(
+    {
+        "num_players": 2,
+        "hero_seat": "BB",
+        "hero_cards": ["Ah", "Kh"],
+        "street": "preflop",
+        "pot": 3.5,
+        "players": [
+            {"seat": "BTN", "stack": 97.5, "status": "active"},
+            {"seat": "BB", "stack": 99.0, "status": "active"},
+        ],
+        "action_history": {"preflop": [["BTN", "raise", 2.5]]},
+        "to_act": "BB",
+    }
+)
+decision.strategy  # e.g. {"fold": 0.02, "call": 0.61, "raise_3.5x": 0.3, "all_in": 0.07}
+decision.recommended  # e.g. {"action": "call", "amount": 2.5}
+decision.source  # "blueprint", or "subgame_solve" on the river
 ```
 
 `act(state, explain=True)` adds the numbers behind the decision (bucket, equity, how off-tree bets
