@@ -46,6 +46,7 @@ class ActionType:
     FOLD: ActionType
     CHECK_CALL: ActionType
     BET_RAISE: ActionType
+    def __int__(self) -> int: ...
 
 class Action:
     def __init__(self, type: ActionType, amount: int = 0) -> None: ...

@@ -168,10 +168,16 @@ def rules() -> _core.ActionRules:
     return rules_from_config(
         ActionAbstractionConfig.model_validate(
             {
-                "preflop": {"open_bb": [2.5], "reraise_x_ip": [3.0], "reraise_x_oop": [4.0],
-                            "four_bet_x": [2.3], "max_raises": 4},
-                "postflop": {2: {"bet_pot": [0.33, 0.75, 1.25], "raise_pot": [0.75],
-                                 "max_raises": 3}},
+                "preflop": {
+                    "open_bb": [2.5],
+                    "reraise_x_ip": [3.0],
+                    "reraise_x_oop": [4.0],
+                    "four_bet_x": [2.3],
+                    "max_raises": 4,
+                },
+                "postflop": {
+                    2: {"bet_pot": [0.33, 0.75, 1.25], "raise_pot": [0.75], "max_raises": 3}
+                },
             }
         )
     )

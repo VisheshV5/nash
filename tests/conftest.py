@@ -40,7 +40,7 @@ def tiny_holdem(artifacts_root: Path) -> RegretConfig:
         "lcfr_until_iteration": 20_000,
         "discount_interval": 2_000,
         "prune_after_iteration": 30_000,
-        "max_infosets": 200_000,
+        "max_infosets": 1_000_000,
     }
     data["eval"] = {"every_minutes": None, "hands": 40}
     cfg = RegretConfig.model_validate(data)
