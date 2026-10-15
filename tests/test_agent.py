@@ -224,3 +224,24 @@ def test_search_ranges_follow_the_blueprint(agent: RegretAgent) -> None:
     assert r0.sum() == pytest.approx(1.0, abs=1e-5)
     assert (r0 > 0).sum() == 1081
     np.testing.assert_allclose(r0, r1)
+
+
+def test_search_player_plays_legal_hands(agent: RegretAgent) -> None:
+    from regret.eval.match import duplicate_match
+    from regret.eval.players import AgentPlayer, AlwaysCall
+
+    fast = RegretAgent(
+        agent.config.model_copy(
+            update={
+                "search": agent.config.search.model_copy(
+                    update={"time_budget_ms": 50, "hard_cap_ms": 100}
+                )
+            }
+        ),
+        agent.strategy,
+        agent.cards,
+    )
+    stacks, sb, bb = [10_000, 10_000], 50, 100
+    searcher = AgentPlayer(fast, stacks, sb, bb, search=True)
+    duplicate_match(searcher, AlwaysCall(), 15, stacks, sb, bb, seed=5)  # raises on illegal play
+    assert searcher.searches > 0

@@ -7,7 +7,7 @@ board)` on the player to act. `board` is the part of the board visible on the cu
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -203,3 +203,37 @@ class BlueprintPlayer(_Base):
             index = int(self.rng.choice(len(p), p=p))
         self._pending = index
         return self.tracker.to_real(state, index)
+
+
+class AgentPlayer(_Base):
+    """A RegretAgent in a match: blueprint everywhere, plus river search when `search` is on."""
+
+    def __init__(
+        self, agent: Any, stacks: list[int], sb: int, bb: int, search: bool, name: str | None = None
+    ) -> None:
+        self.agent, self.stacks, self.sb, self.bb, self.search = agent, stacks, sb, bb, search
+        self.name = name or ("blueprint+search" if search else "blueprint")
+        self.searches = 0
+        self.search_seconds = 0.0
+
+    def act(self, state: _core.HandState, board: list[int]) -> Action:
+        d = self.agent.decide(
+            state,
+            self.stacks,
+            self.sb,
+            self.bb,
+            self.hole,
+            board,
+            seed=int(self.rng.integers(2**63)),
+            search=self.search,
+        )
+        if d.source == "subgame_solve":
+            self.searches += 1
+            self.search_seconds += d.latency_ms / 1000
+        rec = d.recommended
+        la = state.legal_actions()
+        if rec["action"] == "fold":
+            return Action.fold() if la.fold else Action.check_call()
+        if rec["action"] in ("check", "call"):
+            return Action.check_call()
+        return Action.bet_raise_to(round(rec["amount"] * 100))

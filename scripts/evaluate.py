@@ -31,6 +31,14 @@ def main() -> int:
     ap.add_argument("--vs", type=Path, action="append", default=[], help="another bundle")
     ap.add_argument("--lbr", type=int, default=0, help="LBR hands (0 = skip)")
     ap.add_argument("--no-baselines", action="store_true")
+    ap.add_argument(
+        "--search-vs-blueprint",
+        type=int,
+        default=0,
+        metavar="HANDS",
+        help="play blueprint+river search against blueprint-only (0 = skip)",
+    )
+    ap.add_argument("--search-ms", type=int, help="search time budget per decision")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -52,6 +60,42 @@ def main() -> int:
         r = duplicate_match(me, opp, pairs, stacks, sb, bb, seed=args.seed)
         print(f"{r}  [{time.time() - t:.0f}s]", file=sys.stderr)
         results[f"vs {opp.name}"] = r.summary()
+
+    if args.search_vs_blueprint:
+        from regret.agent import RegretAgent
+        from regret.eval.players import AgentPlayer
+
+        scfg = cfg
+        if args.search_ms:
+            scfg = cfg.model_copy(
+                update={
+                    "search": cfg.search.model_copy(
+                        update={
+                            "time_budget_ms": args.search_ms,
+                            "hard_cap_ms": max(cfg.search.hard_cap_ms, 2 * args.search_ms),
+                        }
+                    )
+                }
+            )
+        agent = RegretAgent(scfg, strategy, cards)
+        with_search = AgentPlayer(agent, stacks, sb, bb, search=True)
+        without = AgentPlayer(agent, stacks, sb, bb, search=False)
+        t = time.time()
+        r = duplicate_match(
+            with_search,
+            without,
+            max(1, args.search_vs_blueprint // 2),
+            stacks,
+            sb,
+            bb,
+            seed=args.seed,
+        )
+        print(
+            f"{r}  [{time.time() - t:.0f}s, {with_search.searches} searches, "
+            f"{with_search.search_seconds / max(1, with_search.searches) * 1000:.0f} ms each]",
+            file=sys.stderr,
+        )
+        results["search vs blueprint"] = r.summary() | {"searches": with_search.searches}
 
     if args.lbr:
         t = time.time()
