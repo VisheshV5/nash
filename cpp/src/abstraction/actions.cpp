@@ -39,53 +39,63 @@ double pot_fraction(const HandState& s, Chips to) {
   return static_cast<double>(to - cur) / static_cast<double>(s.pot() + call);
 }
 
-std::vector<Action> abstract_actions(const HandState& s, const ActionRules& rules) {
-  std::vector<Action> out;
+int abstract_actions(const HandState& s, const ActionRules& rules, Action* out) {
+  int n = 0;
   const int seat = s.to_act();
-  if (seat < 0) return out;
+  if (seat < 0) return 0;
   const LegalActions la = s.legal_actions();
-  if (la.fold) out.push_back(Action::fold());
-  out.push_back(Action::check_call());
-  if (!la.bet_raise) return out;
+  if (la.fold) out[n++] = Action::fold();
+  out[n++] = Action::check_call();
+  if (!la.bet_raise) return n;
 
   const Chips cur = s.current_bet();
   const int raises = s.raises_this_street();
-  std::vector<double> targets;  // raise-to amounts, in chips
+  const std::vector<double>* sizing = nullptr;  // raise-to targets come from this list
+  double scale = 0, offset = 0;                 // target = offset + scale * value
   bool all_in = true;
   if (s.street() == Street::kPreflop) {
     const PreflopSizing& p = rules.preflop;
     all_in = p.all_in;
     if (raises < p.max_raises) {
       if (raises == 0) {
-        for (double bb : p.open_bb) targets.push_back(bb * static_cast<double>(rules.chips_per_bb));
+        sizing = &p.open_bb;
+        scale = static_cast<double>(rules.chips_per_bb);
       } else {
-        const auto& mults =
-            raises == 1 ? (in_position(s, seat) ? p.reraise_x_ip : p.reraise_x_oop) : p.four_bet_x;
-        for (double x : mults) targets.push_back(x * static_cast<double>(cur));
+        sizing = raises == 1 ? (in_position(s, seat) ? &p.reraise_x_ip : &p.reraise_x_oop)
+                             : &p.four_bet_x;
+        scale = static_cast<double>(cur);
       }
     }
   } else {
     const PostflopSizing& p = rules.postflop_for(s.non_folded());
     all_in = p.all_in;
     if (raises < p.max_raises) {
-      const double pot_after_call = static_cast<double>(s.pot() + (cur - s.bet(seat)));
-      for (double f : raises == 0 ? p.bet_pot : p.raise_pot) {
-        targets.push_back(static_cast<double>(cur) + f * pot_after_call);
-      }
+      sizing = raises == 0 ? &p.bet_pot : &p.raise_pot;
+      offset = static_cast<double>(cur);
+      scale = static_cast<double>(s.pot() + (cur - s.bet(seat)));
     }
   }
 
-  std::vector<Chips> sizes;
-  for (double t : targets) {
-    const Chips to =
-        std::clamp(static_cast<Chips>(std::llround(t)), la.min_raise_to, la.max_raise_to);
-    if (to < la.max_raise_to) sizes.push_back(to);  // all-in is added once, below
+  Chips sizes[kMaxAbstractActions];
+  int k = 0;
+  if (sizing) {
+    for (double v : *sizing) {
+      const Chips to = std::clamp(static_cast<Chips>(std::llround(offset + scale * v)),
+                                  la.min_raise_to, la.max_raise_to);
+      if (to < la.max_raise_to && k < kMaxAbstractActions - 3) sizes[k++] = to;  // all-in below
+    }
   }
-  std::sort(sizes.begin(), sizes.end());
-  sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
-  for (Chips to : sizes) out.push_back(Action::bet_raise_to(to));
-  if (all_in || sizes.empty()) out.push_back(Action::bet_raise_to(la.max_raise_to));
-  return out;
+  std::sort(sizes, sizes + k);
+  k = static_cast<int>(std::unique(sizes, sizes + k) - sizes);
+  for (int i = 0; i < k; ++i) out[n++] = Action::bet_raise_to(sizes[i]);
+  if (all_in || k == 0) out[n++] = Action::bet_raise_to(la.max_raise_to);
+  return n;
+}
+
+std::vector<Action> abstract_actions(const HandState& s, const ActionRules& rules) {
+  Action buf[kMaxAbstractActions];
+  const int n = abstract_actions(s, rules, buf);
+  return {buf, buf + n};
 }
 
 double pseudo_harmonic(double a, double b, double x) {

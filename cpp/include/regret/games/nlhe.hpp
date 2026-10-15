@@ -27,7 +27,7 @@ struct NlheTables {
 // action sequence determines the street and who acts. Utilities are in big blinds.
 class Nlhe {
  public:
-  static constexpr int kMaxActions = 16;
+  static constexpr int kMaxActions = abstraction::kMaxAbstractActions;
 
   struct State {
     HandState h;
@@ -36,6 +36,7 @@ class Nlhe {
     std::array<std::array<std::uint16_t, 4>, kMaxPlayers> bucket{};
     std::array<std::array<Card, 2>, kMaxPlayers> hole{};
     std::array<Card, 5> board{};
+    std::array<std::uint32_t, kMaxPlayers> value{};  // each player's 7-card hand value
     std::uint64_t history = kHistoryRoot;
   };
 

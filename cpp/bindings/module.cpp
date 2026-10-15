@@ -572,7 +572,12 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("chips_per_bb", &ab::ActionRules::chips_per_bb)
       .def_readwrite("preflop", &ab::ActionRules::preflop)
       .def_readwrite("postflop", &ab::ActionRules::postflop);
-  m.def("abstract_actions", &ab::abstract_actions, py::arg("state"), py::arg("rules"));
+  m.def(
+      "abstract_actions",
+      [](const regret::HandState& s, const ab::ActionRules& r) {
+        return ab::abstract_actions(s, r);
+      },
+      py::arg("state"), py::arg("rules"));
   m.def("pot_fraction", &ab::pot_fraction, py::arg("state"), py::arg("to"));
   m.def("pseudo_harmonic", &ab::pseudo_harmonic, py::arg("a"), py::arg("b"), py::arg("x"));
   m.def("translate", &ab::translate, py::arg("state"), py::arg("rules"), py::arg("action"));

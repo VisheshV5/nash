@@ -39,6 +39,10 @@ struct ActionRules {
 // clamped to the legal range, and deduplicated.
 std::vector<Action> abstract_actions(const HandState& s, const ActionRules& rules);
 
+// Same, written into `out` (room for kMaxAbstractActions) without allocating; returns the count.
+inline constexpr int kMaxAbstractActions = 16;
+int abstract_actions(const HandState& s, const ActionRules& rules, Action* out);
+
 // A bet/raise to `to` as a fraction of the pot after calling: (to - current bet) / (pot + call).
 double pot_fraction(const HandState& s, Chips to);
 

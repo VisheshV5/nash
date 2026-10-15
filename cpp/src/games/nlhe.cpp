@@ -1,7 +1,10 @@
 #include "regret/games/nlhe.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
+
+#include "regret/evaluator.hpp"
 
 namespace regret::games {
 
@@ -47,6 +50,11 @@ Nlhe::State Nlhe::sample_deal(Rng& rng) const {
   };
   for (int p = 0; p < n; ++p) s.hole[p] = {draw(), draw()};
   for (Card& c : s.board) c = draw();
+  for (int p = 0; p < n; ++p) {
+    Card seven[7] = {s.hole[p][0], s.hole[p][1]};
+    std::copy(s.board.begin(), s.board.end(), seven + 2);
+    s.value[p] = evaluate(seven, 7);
+  }
   static constexpr int kBoardSize[4] = {0, 3, 4, 5};
   for (int p = 0; p < n; ++p) {
     for (int street = 0; street < 4; ++street) {
@@ -59,11 +67,10 @@ Nlhe::State Nlhe::sample_deal(Rng& rng) const {
 }
 
 void Nlhe::refresh_actions(State& s) const {
-  s.num_acts = 0;
-  if (s.h.is_terminal()) return;
-  const std::vector<Action> acts = abstraction::abstract_actions(s.h, actions_);
-  if (acts.size() > kMaxActions) throw std::logic_error("Nlhe: too many abstract actions");
-  for (const Action& a : acts) s.acts[s.num_acts++] = a;
+  s.num_acts =
+      s.h.is_terminal()
+          ? 0
+          : static_cast<std::uint8_t>(abstraction::abstract_actions(s.h, actions_, s.acts.data()));
 }
 
 void Nlhe::apply(State& s, int action_index) const {
@@ -73,6 +80,18 @@ void Nlhe::apply(State& s, int action_index) const {
 }
 
 double Nlhe::utility(const State& s, int player) const {
+  const double bb = static_cast<double>(rules_.big_blind);
+  if (num_players() == 2) {
+    // Heads-up: the loser pays what both put in up to the smaller contribution (any excess is
+    // an uncalled bet and comes back); a fold loses the folder's whole contribution.
+    const int o = 1 - player;
+    const Chips mine = s.h.contributed(player), theirs = s.h.contributed(o);
+    if (s.h.status(player) == PlayerStatus::kFolded) return -static_cast<double>(mine) / bb;
+    if (s.h.status(o) == PlayerStatus::kFolded) return static_cast<double>(theirs) / bb;
+    const double stake = static_cast<double>(std::min(mine, theirs)) / bb;
+    if (s.value[player] == s.value[o]) return 0.0;
+    return s.value[player] > s.value[o] ? stake : -stake;
+  }
   std::vector<std::array<Card, 2>> hole(s.hole.begin(), s.hole.begin() + num_players());
   const std::vector<Chips> pay = s.h.payoffs(hole, s.board);
   return static_cast<double>(pay[player]) / static_cast<double>(rules_.big_blind);
