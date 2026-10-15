@@ -1,0 +1,57 @@
+# Heads-up, 200bb: for the Slumbot benchmark (Slumbot plays 200bb stacks). Same card abstraction
+# and bet sizes as hu_default.yaml; deeper stacks add more raise sequences.
+name: hu-200bb
+
+table:
+  num_players: 2
+  starting_stack_bb: 200
+  small_blind_bb: 0.5
+
+actions:
+  preflop:
+    open_bb: [2.0, 2.5]
+    reraise_x_ip: [2.5, 3.5]
+    reraise_x_oop: [3.5, 4.5]
+    four_bet_x: [2.3]
+    allow_all_in: true
+    max_raises: 4
+  postflop:
+    2:
+      bet_pot: [0.33, 0.75, 1.25]
+      raise_pot: [0.75, 1.5]
+      allow_all_in: true
+
+cards:
+  flop_buckets: 500
+  turn_buckets: 500
+  river_buckets: 500
+  river_opponent_clusters: 8
+  feature_sample_size: 10000000
+
+training:
+  seed: 0
+  deterministic: false
+  threads: 6            # M2 Pro performance cores
+  memory_budget_gb: 10  # of 16 GB
+  checkpoint_every_minutes: 30
+  keep_last_checkpoints: 2
+
+cfr:                                # iteration counts assume ~55k it/s on 6 threads
+  lcfr_until_iteration: 500000000     # ~2.5 h of Linear CFR discounting
+  discount_interval: 5000000
+  prune_after_iteration: 1000000000   # ~5 h
+  prune_probability: 0.95
+  prune_threshold: -10000             # big blinds of regret
+  regret_floor: -30000
+  max_infosets: 60000000              # planner: 52.5M worst case (2.4 GB)
+
+eval:
+  every_minutes: 60
+  hands: 2000
+
+search:
+  enabled: true
+  time_budget_ms: 800
+  hard_cap_ms: 1500
+  threads: 6
+  continuation_strategies: 4
