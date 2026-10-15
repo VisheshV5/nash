@@ -5,7 +5,8 @@ An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time se
 
 > **Status: pre-alpha.** Done: rules engine, MCCFR trainer and tooling, card and action
 > abstraction, evaluation (baselines, duplicate matches, LBR), the agent library and REST API with
-> river re-solving, and bundle packaging. The v1 heads-up blueprint is training now.
+> river re-solving, and bundle packaging. The v1 heads-up blueprint is trained (10.7B iterations,
+> 8 hours on a laptop); results in [RESULTS.md](RESULTS.md).
 
 ## Using the agent
 
