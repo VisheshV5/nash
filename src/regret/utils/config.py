@@ -159,12 +159,18 @@ class EvalConfig(_Strict):
     """Hold'em: hands per baseline in each periodic evaluation (played as duplicate pairs)."""
 
 
+SearchStreet = Literal["turn", "river"]
+_SEARCH_STREETS: tuple[SearchStreet, ...] = ("turn", "river")
+
+
 class SearchConfig(_Strict):
     enabled: bool = True
     time_budget_ms: int = Field(default=800, ge=1)
     hard_cap_ms: int = Field(default=1500, ge=1)
     threads: int = Field(default=6, ge=1, le=256)
     continuation_strategies: int = Field(default=4, ge=1, le=8)
+    # Streets re-solved in real time (heads-up); the others play the blueprint.
+    streets: list[SearchStreet] = Field(default_factory=lambda: list(_SEARCH_STREETS))
 
     @model_validator(mode="after")
     def _budget(self) -> Self:

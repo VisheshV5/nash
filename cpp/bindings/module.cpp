@@ -647,22 +647,21 @@ PYBIND11_MODULE(_core, m) {
       py::arg("history"), py::arg("bucket"));
 
   // ---- real-time search
-  m.def(
-      "solve_river",
+  auto solve_subgame =
       [=](const regret::HandState& start, const std::vector<int>& board,
           const std::vector<regret::Action>& path, const F32Array& range0, const F32Array& range1,
           std::vector<double> bet_pot, std::vector<double> raise_pot, int max_raises, bool all_in,
-          int min_iterations, int max_iterations, double max_seconds, int threads,
-          double average_power) {
+          std::vector<double> river_bet_pot, std::vector<double> river_raise_pot,
+          int river_max_raises, int min_iterations, int max_iterations, double max_seconds,
+          int threads, double average_power, bool exploitability) {
         namespace rs = regret::search;
-        if (board.size() != 5) throw py::value_error("the river needs a 5-card board");
         if (range0.size() != rs::kHands || range1.size() != rs::kHands) {
           throw py::value_error("ranges need 1326 entries");
         }
-        rs::RiverProblem p;
+        rs::SubgameProblem p;
         p.start = start;
         const auto b = checked_cards(board);
-        std::copy(b.begin(), b.end(), p.board.begin());
+        p.board.assign(b.begin(), b.end());
         p.path = path;
         std::copy(range0.data(), range0.data() + rs::kHands, p.range[0].begin());
         std::copy(range1.data(), range1.data() + rs::kHands, p.range[1].begin());
@@ -670,15 +669,20 @@ PYBIND11_MODULE(_core, m) {
         p.actions.raise_pot = std::move(raise_pot);
         p.actions.max_raises = max_raises;
         p.actions.all_in = all_in;
+        p.river_actions.bet_pot = std::move(river_bet_pot);
+        p.river_actions.raise_pot = std::move(river_raise_pot);
+        p.river_actions.max_raises = river_max_raises;
+        p.river_actions.all_in = all_in;
         p.min_iterations = min_iterations;
         p.max_iterations = max_iterations;
         p.max_seconds = max_seconds;
         p.threads = threads;
         p.average_power = average_power;
-        rs::RiverSolution sol;
+        p.exploitability = exploitability;
+        rs::SubgameSolution sol;
         {
           py::gil_scoped_release release;
-          sol = rs::solve_river(p);
+          sol = rs::solve_subgame(p);
         }
         py::dict out;
         out["actions"] = sol.actions;
@@ -692,11 +696,18 @@ PYBIND11_MODULE(_core, m) {
         out["nodes"] = sol.nodes;
         out["exploitability"] = sol.exploitability;
         return out;
-      },
-      py::arg("start"), py::arg("board"), py::arg("path"), py::arg("range0"), py::arg("range1"),
-      py::arg("bet_pot") = std::vector<double>{0.33, 0.5, 0.75, 1.0, 1.5},
-      py::arg("raise_pot") = std::vector<double>{0.5, 1.0}, py::arg("max_raises") = 3,
-      py::arg("all_in") = true, py::arg("min_iterations") = 50, py::arg("max_iterations") = 2000,
-      py::arg("max_seconds") = 0.8, py::arg("threads") = 1, py::arg("average_power") = 2.0,
-      "Re-solve the river (heads-up) from its start with exact hands; see regret/search.");
+      };
+  for (const char* name : {"solve_subgame", "solve_river"}) {
+    m.def(name, solve_subgame, py::arg("start"), py::arg("board"), py::arg("path"),
+          py::arg("range0"), py::arg("range1"),
+          py::arg("bet_pot") = std::vector<double>{0.33, 0.5, 0.75, 1.0, 1.5},
+          py::arg("raise_pot") = std::vector<double>{0.5, 1.0}, py::arg("max_raises") = 3,
+          py::arg("all_in") = true, py::arg("river_bet_pot") = std::vector<double>{0.5, 1.0},
+          py::arg("river_raise_pot") = std::vector<double>{1.0}, py::arg("river_max_raises") = 2,
+          py::arg("min_iterations") = 50, py::arg("max_iterations") = 2000,
+          py::arg("max_seconds") = 0.8, py::arg("threads") = 1, py::arg("average_power") = 2.0,
+          py::arg("exploitability") = true,
+          "Re-solve heads-up from the start of the turn (4-card board) or river (5 cards) to the "
+          "end of the hand, with exact hands; see regret/search. solve_river is an alias.");
+  }
 }

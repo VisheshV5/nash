@@ -9,6 +9,10 @@ by its expectation over every possible runout of the missing board cards (sample
 more than a few thousand boards). This is the chance-node part of AIVAT; the decision-node
 corrections (which need the agents' value estimates) are not applied.
 
+**Range-expected showdowns.** A player that knows its opponent's strategy (LBR) can also take
+the expectation over the opponent's hole cards: if it has a `showdown_value(state, board)`
+method returning a number, that (in chips, for its seat) replaces the adjusted showdown result.
+
 Results are from the first player's point of view. mbb/hand = 1000 x big blinds won per hand.
 """
 
@@ -89,6 +93,14 @@ def play_hand(
         adjusted = [c / bb for c in _allin_ev(state, hole, board, seen, rng)]
     else:
         adjusted = raw
+    if state.is_showdown and len(players) == 2:
+        for seat, p in enumerate(players):
+            value = getattr(p, "showdown_value", None)
+            v = value(state, board[:seen]) if value else None
+            if v is not None:
+                adjusted = [0.0, 0.0]
+                adjusted[seat], adjusted[1 - seat] = v / bb, -v / bb
+                break
     return HandResult(raw, adjusted, decisions)
 
 

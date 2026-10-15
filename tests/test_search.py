@@ -1,4 +1,5 @@
-"""Real-time river search: convergence, a textbook equilibrium, and forced real actions."""
+"""Real-time turn and river search: convergence, a textbook equilibrium, forced real actions,
+and the river card as a chance node."""
 
 from __future__ import annotations
 
@@ -128,7 +129,7 @@ def test_search_rejects_bad_problems() -> None:
     flop = _core.HandState([10_000, 10_000], 50, 100, record_history=False)
     flop.apply(A.check_call())
     flop.apply(A.check_call())
-    with pytest.raises(ValueError, match="start of the river"):
+    with pytest.raises(ValueError, match="start of the turn or river"):
         _core.solve_river(flop, BOARD, [], u, u)
     with pytest.raises(ValueError, match="end the hand"):
         _core.solve_river(river_start(), BOARD, [A.check_call(), A.check_call()], u, u)
@@ -155,3 +156,78 @@ def test_parallel_solve_is_reproducible_and_converges() -> None:
         river_start(), BOARD, [], u, u, min_iterations=100, max_iterations=100, max_seconds=60
     )
     assert runs[0]["exploitability"] == pytest.approx(serial["exploitability"], rel=0.05)
+
+
+# ---------------------------------------------------------------- from the turn
+
+TURN_MENU: dict[str, Any] = {
+    "bet_pot": [0.5, 1.0],
+    "raise_pot": [1.0],
+    "max_raises": 2,
+    "river_bet_pot": [1.0],
+    "river_raise_pot": [],
+    "river_max_raises": 1,
+}
+
+
+def turn_start() -> _core.HandState:
+    """Heads-up 100bb: button opens to 2.5bb, big blind calls, flop checks through (pot 500)."""
+    h = _core.HandState([10_000, 10_000], 50, 100, record_history=False)
+    for a in [A.bet_raise_to(250), A.check_call(), A.check_call(), A.check_call()]:
+        h.apply(a)
+    assert h.street == _core.Street.TURN
+    return h
+
+
+def solve_turn(board: list[int], r0: np.ndarray, r1: np.ndarray, its: int, **kw: Any) -> Any:
+    return _core.solve_subgame(
+        turn_start(),
+        board,
+        kw.pop("path", []),
+        r0,
+        r1,
+        min_iterations=its,
+        max_iterations=its,
+        max_seconds=120,
+        **(TURN_MENU | kw),
+    )
+
+
+def test_turn_exploitability_falls_with_iterations() -> None:
+    u = np.ones(1326, np.float32)
+    prev = float("inf")
+    for its in (10, 40, 160):
+        r = solve_turn(BOARD[:4], u, u, its, threads=4)
+        assert r["exploitability"] < prev
+        prev = r["exploitability"]
+    assert prev < 0.02 * 500  # under 2% of the pot
+
+
+def test_turn_values_average_over_river_cards() -> None:
+    # Quads on the turn: the big blind (first to act) wins whatever river comes, so the button
+    # never puts in another chip and the big blind's value is exactly the button's 250.
+    board = parse_cards("KdKs5h2c")
+    quads, junk = _core.hole_index(*parse_cards("KhKc")), _core.hole_index(*parse_cards("7c3d"))
+    r0, r1 = np.zeros(1326, np.float32), np.zeros(1326, np.float32)
+    r0[junk], r1[quads] = 1, 1
+    r = solve_turn(board, r0, r1, 300)
+    assert r["player"] == 1
+    assert r["values"][quads] == pytest.approx(250, abs=2)
+    # And the button, facing a bet with no outs, folds.
+    faced = solve_turn(board, r0, r1, 300, path=[A.bet_raise_to(250)])
+    fold = [a.type for a in faced["actions"]].index(_core.ActionType.FOLD)
+    assert faced["strategy"][fold, junk] > 0.99
+
+
+def test_turn_solve_is_the_same_on_any_number_of_threads() -> None:
+    u = np.ones(1326, np.float32)
+    serial = solve_turn(BOARD[:4], u, u, 20, exploitability=False)
+    threaded = solve_turn(BOARD[:4], u, u, 20, threads=4, exploitability=False)
+    np.testing.assert_array_equal(serial["strategy"], threaded["strategy"])
+    assert serial["exploitability"] == -1
+
+
+def test_turn_search_rejects_a_river_board() -> None:
+    u = np.ones(1326, np.float32)
+    with pytest.raises(ValueError, match="4-card board"):
+        _core.solve_subgame(turn_start(), BOARD, [], u, u)

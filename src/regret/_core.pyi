@@ -37,6 +37,8 @@ class Street:
     def __int__(self) -> int: ...
     @property
     def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
 
 class PlayerStatus:
     ACTIVE: PlayerStatus
@@ -262,6 +264,26 @@ def nlhe_extend_history(history: int, action_index: int) -> int: ...
 def nlhe_infoset_key(history: int, bucket: int) -> int: ...
 
 # real-time search
+def solve_subgame(
+    start: HandState,
+    board: list[int],
+    path: list[Action],
+    range0: NDArray[np.float32],
+    range1: NDArray[np.float32],
+    bet_pot: list[float] = ...,
+    raise_pot: list[float] = ...,
+    max_raises: int = 3,
+    all_in: bool = True,
+    river_bet_pot: list[float] = ...,
+    river_raise_pot: list[float] = ...,
+    river_max_raises: int = 2,
+    min_iterations: int = 50,
+    max_iterations: int = 2000,
+    max_seconds: float = 0.8,
+    threads: int = 1,
+    average_power: float = 2.0,
+    exploitability: bool = True,
+) -> dict[str, Any]: ...
 def solve_river(
     start: HandState,
     board: list[int],
@@ -272,9 +294,13 @@ def solve_river(
     raise_pot: list[float] = ...,
     max_raises: int = 3,
     all_in: bool = True,
+    river_bet_pot: list[float] = ...,
+    river_raise_pot: list[float] = ...,
+    river_max_raises: int = 2,
     min_iterations: int = 50,
     max_iterations: int = 2000,
     max_seconds: float = 0.8,
     threads: int = 1,
     average_power: float = 2.0,
+    exploitability: bool = True,
 ) -> dict[str, Any]: ...

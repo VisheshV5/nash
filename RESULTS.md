@@ -36,10 +36,19 @@ All three are significant wins.
 |---|---|---|
 | 314M iterations | ~1 h | 1,323 ± 498 mbb/hand |
 | 742M iterations | ~2.7 h | 1,047 ± 606 mbb/hand |
+| 3.03B iterations | ~4.6 h | 1,312 ± 573 mbb/hand |
 
-Heading down, not yet significant. Head-to-head the two are even (742M vs 314M: -16 ± 159
-mbb/hand over 10,000 hands): a blueprint this size changes slowly and this early the gains are
-small.
+With range-expected showdowns (LBR scores each showdown against the blueprint's whole range;
+see `regret/eval/lbr.py`), same deals: 742M 957 ± 541, 3.03B 1,079 ± 506. The confidence
+interval narrows by about 11%, which isn't enough to separate the checkpoints.
+
+No measurable change: every difference is well inside the ±600 noise of a 3,000-hand LBR.
+Head-to-head the checkpoints are also even (742M vs 314M: -16 ± 159; 3.03B vs 742M: +68 ± 159,
+10,000 hands each). Against the baselines the 3.03B checkpoint wins +1,168 ± 480 (random),
++1,647 ± 281 (always-call) and +710 ± 366 (equity-threshold) over 6,000 hands, all significant
+and not significantly different from the 1-hour numbers. A blueprint this size changes slowly
+and these samples can only detect large changes; telling later checkpoints apart needs a
+lower-variance LBR (next item).
 
 **Training speed:** ~80k iterations/s for the first billion iterations, then ~460k iterations/s
 once negative-regret pruning starts at 1B (95% of iterations skip actions with very negative

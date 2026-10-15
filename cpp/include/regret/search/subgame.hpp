@@ -19,7 +19,10 @@
 // over the opponent's range with card removal (and, at showdown, hands sorted by strength), so a
 // terminal costs O(1,326) rather than O(1,326^2).
 //
-// v1 solves the river exactly (to showdown). Earlier streets are left to the blueprint.
+// Solving starts on the turn or the river and always runs to the end of the hand. From the turn,
+// the river card is a chance node: one river subtree per possible card (with the river's own,
+// smaller bet menu), and a hand that holds the river card takes no part in that subtree. The
+// flop and preflop are left to the blueprint.
 namespace regret::search {
 
 inline constexpr int kHands = 1326;
@@ -32,22 +35,26 @@ struct SearchActions {
   bool all_in = true;
 };
 
-struct RiverProblem {
-  HandState start{TableRules{{1, 1}, 1, 2}};  // heads-up, at the start of the river betting round
-  std::array<Card, 5> board{};
-  std::vector<Action> path;      // real river actions so far (forced into the tree)
+struct SubgameProblem {
+  HandState start{TableRules{{1, 1}, 1, 2}};  // heads-up, at the start of a turn or river round
+  std::vector<Card> board;                    // 4 cards (turn) or 5 (river)
+  std::vector<Action> path;      // real actions on this street so far (forced into the tree)
   std::array<Range, 2> range{};  // per seat; blocked hands are ignored
-  SearchActions actions;
+  SearchActions actions;         // the start street's bet menu
+  SearchActions river_actions;   // the river's, when solving from the turn
   int min_iterations = 50;
   int max_iterations = 2000;
   double max_seconds = 0.8;
-  int threads = 1;  // > 1 solves the subtrees under the root decision in parallel
+  // > 1: from the river, the subtrees under the root decision are solved in parallel; from the
+  // turn, the river cards under each chance node are.
+  int threads = 1;
+  bool exploitability = true;  // measure the result's exploitability (one more pass or two)
   // Iteration t's strategy enters the average with weight t^average_power. Higher powers
   // forget the poor early iterations faster (Discounted CFR uses 2).
   double average_power = 2.0;
 };
 
-struct RiverSolution {
+struct SubgameSolution {
   std::vector<Action> actions;  // at the current decision (after `path`)
   int player = -1;              // seat to act there
   std::vector<float> strategy;  // actions.size() x kHands, average strategy (rows sum to 1)
@@ -56,9 +63,9 @@ struct RiverSolution {
   int iterations = 0;
   double seconds = 0;
   int nodes = 0;
-  double exploitability = 0;  // chips per hand, of the whole subgame strategy
+  double exploitability = -1;  // chips per hand, of the whole subgame strategy (-1: not measured)
 };
 
-RiverSolution solve_river(const RiverProblem& problem);
+SubgameSolution solve_subgame(const SubgameProblem& problem);
 
 }  // namespace regret::search

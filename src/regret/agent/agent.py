@@ -47,7 +47,7 @@ from regret.engine.state import (
 from regret.eval.players import AbstractTracker
 from regret.eval.strategy import StrategyTable
 from regret.export.bundle import load_bundle
-from regret.search.river import Step, bayes_ranges, river_start
+from regret.search.river import Step, bayes_ranges, search_menu, street_start
 from regret.utils.config import RegretConfig
 
 Mode = Literal["sample", "argmax"]
@@ -198,8 +198,9 @@ class RegretAgent:
         t0 = time.perf_counter()
         branches = self._replay(real.history, starting, sb, bb)
         bucket = self.cards.bucket(hero_cards, board)
+        street_name = ["preflop", "flop", "turn", "river"][int(real.street)]
         use_search = (self.config.search.enabled if search is None else search) and (
-            real.street == _core.Street.RIVER and real.num_players == 2
+            street_name in self.config.search.streets and real.num_players == 2
         )
 
         mixed: dict[tuple[int, int], float] = defaultdict(float)
@@ -208,7 +209,7 @@ class RegretAgent:
         solve: dict[str, Any] | None = None
         hero = _core.hole_index(*hero_cards)
         if use_search:
-            solve = self._solve_river(real, starting, sb, bb, branches[0], board)
+            solve = self._solve(real, starting, sb, bb, branches[0], board, explain)
             for i, action in enumerate(solve["actions"]):
                 p = float(solve["strategy"][i, hero])
                 if p > 0:
@@ -245,11 +246,10 @@ class RegretAgent:
 
         explanation = None
         if explain:
-            street = ["preflop", "flop", "turn", "river"][int(real.street)]
             explanation = {
-                "street": street,
+                "street": street_name,
                 "bucket": bucket,
-                "buckets_on_street": self.cards.buckets[street],
+                "buckets_on_street": self.cards.buckets[street_name],
                 "equity_vs_random_hand": round(
                     _core.equity_vs_range(
                         hero_cards, board, np.ones(1326, np.float32), 500, seed or 0
@@ -280,7 +280,7 @@ class RegretAgent:
             explain=explanation,
         )
 
-    def _solve_river(
+    def _solve(
         self,
         real: _core.HandState,
         starting: list[int],
@@ -288,19 +288,28 @@ class RegretAgent:
         bb: int,
         branch: _Branch,
         board: list[int],
+        explain: bool,
     ) -> dict[str, Any]:
-        start, path = river_start(real.history, starting, sb, bb)
+        start, path = street_start(real.history, starting, sb, bb, real.street)
         r0, r1 = bayes_ranges(branch.steps, board, self.cards, self.strategy)
-        return _core.solve_river(
+        menu = search_menu(real.street)
+        return _core.solve_subgame(
             start,
             board,
             path,
             r0,
             r1,
-            min_iterations=20,
+            bet_pot=list(menu.bet_pot),
+            raise_pot=list(menu.raise_pot),
+            max_raises=menu.max_raises,
+            river_bet_pot=list(menu.river_bet_pot),
+            river_raise_pot=list(menu.river_raise_pot),
+            river_max_raises=menu.river_max_raises,
+            min_iterations=menu.min_iterations,
             max_iterations=100_000,
             max_seconds=self.config.search.time_budget_ms / 1000,
             threads=self.config.search.threads,
+            exploitability=explain,
         )
 
     # ------------------------------------------------------------------ pieces

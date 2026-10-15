@@ -203,7 +203,7 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M2, M3.
 
-### M5 — Depth-limited real-time search, heads-up (~5–7 days)  🔄 *river search done 2026-10-15; turn next*
+### M5 — Depth-limited real-time search, heads-up (~5–7 days)  🔄 *river and turn search done 2026-10-15; measuring*
 Search code is written for N players; v1 tests and tunes it heads-up only.
 
 **Deliverables**
@@ -212,7 +212,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 - Richer action set in search, with the actual off-tree bet inserted. Fine-grained hand buckets inside the subgame.
 - Anytime solver, 6 threads, 800 ms budget, blueprint fallback (D7).
 
-*As built (2026-10-15):* the river is re-solved exactly from the street's start with vector CFR+ over all 1,326 hole pairs (bet menu 33/50/75/100/150% pot, raises 50/100%, all-in, plus the real actions taken), from blueprint Bayesian ranges with a 2% uniform blend. Verified against the textbook polarized-bettor vs bluff-catcher equilibrium. The flop and turn use the blueprint for now; turn re-solving (river as a chance node) is next.
+*As built (2026-10-15):* the river is re-solved exactly from the street's start with vector CFR+ over all 1,326 hole pairs (bet menu 33/50/75/100/150% pot, raises 50/100%, all-in, plus the real actions taken), from blueprint Bayesian ranges with a 2% uniform blend. Verified against the textbook polarized-bettor vs bluff-catcher equilibrium. Turn re-solving (2026-10-15): the river card is a chance node, one river subtree per card, with one bet size plus all-in on each street (about 3,200 nodes, ~80 iterations in the 0.8 s budget on six cores, 3-4% of the pot from equilibrium on uniform ranges). The flop uses the blueprint.
 
 **Acceptance**
 - **Blueprint + search beats blueprint-only** with 95% CI. *(200k hands with a ~1 s search per river decision is weeks of laptop time; the target is revised to as many duplicate hands as a few hours allows, reported with its CI.)* LBR improves over M4.

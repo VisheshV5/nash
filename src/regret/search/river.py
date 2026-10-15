@@ -1,4 +1,5 @@
-"""River re-solving for the agent: beliefs from the blueprint, then the C++ subgame solver.
+"""Turn and river re-solving for the agent: beliefs from the blueprint, then the C++ subgame
+solver.
 
 Ranges. Both players start with every hole pair; at each of their actions, each pair is
 reweighted by the blueprint's probability of that action for the pair's bucket on that street
@@ -63,17 +64,63 @@ def bayes_ranges(
     return out[0], out[1]
 
 
+def street_start(
+    history: list[tuple[_core.Street, int, _core.Action]],
+    starting: list[int],
+    sb: int,
+    bb: int,
+    street: _core.Street,
+) -> tuple[_core.HandState, list[_core.Action]]:
+    """The state at the start of `street`'s betting, and the actions taken on it since."""
+    h = _core.HandState(starting, sb, bb, record_history=False)
+    path: list[_core.Action] = []
+    for s, _seat, action in history:
+        if s == street:
+            path.append(action)
+        elif int(s) < int(street):
+            h.apply(action)
+        else:
+            raise ValueError(f"the hand is past the {street.name.lower()}")
+    if h.street != street:
+        raise ValueError(f"the hand isn't on the {street.name.lower()}")
+    return h, path
+
+
 def river_start(
     history: list[tuple[_core.Street, int, _core.Action]], starting: list[int], sb: int, bb: int
 ) -> tuple[_core.HandState, list[_core.Action]]:
     """The state at the start of river betting, and the river actions taken since."""
-    h = _core.HandState(starting, sb, bb, record_history=False)
-    path: list[_core.Action] = []
-    for street, _seat, action in history:
-        if street == _core.Street.RIVER:
-            path.append(action)
-        else:
-            h.apply(action)
-    if h.street != _core.Street.RIVER:
-        raise ValueError("the hand isn't on the river")
-    return h, path
+    return street_start(history, starting, sb, bb, _core.Street.RIVER)
+
+
+@dataclass(frozen=True)
+class SearchMenu:
+    """Bet sizes (fractions of the pot) for a solve starting on a street."""
+
+    bet_pot: tuple[float, ...]
+    raise_pot: tuple[float, ...]
+    max_raises: int
+    river_bet_pot: tuple[float, ...] = (0.5, 1.0)
+    river_raise_pot: tuple[float, ...] = (1.0,)
+    river_max_raises: int = 2
+    min_iterations: int = 20
+
+
+# From the river the tree is small, so the menu is rich. From the turn every turn line that
+# reaches the river is followed by 48 river subtrees, so both streets get one size plus all-in
+# (about 3,200 nodes and 50 ms per iteration on one core; about 80 iterations, 3-4% of the pot
+# from equilibrium on uniform ranges, in the 0.8 s budget on six).
+RIVER_MENU = SearchMenu(bet_pot=(0.33, 0.5, 0.75, 1.0, 1.5), raise_pot=(0.5, 1.0), max_raises=3)
+TURN_MENU = SearchMenu(
+    bet_pot=(0.66,),
+    raise_pot=(),
+    max_raises=2,
+    river_bet_pot=(0.75,),
+    river_raise_pot=(),
+    river_max_raises=2,
+    min_iterations=10,
+)
+
+
+def search_menu(street: _core.Street) -> SearchMenu:
+    return TURN_MENU if street == _core.Street.TURN else RIVER_MENU

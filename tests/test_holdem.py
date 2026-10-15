@@ -195,8 +195,21 @@ def test_lbr_crushes_an_untrained_blueprint(tiny_holdem: RegretConfig) -> None:
     rules = rules_from_config(tiny_holdem.actions)
     lbr = LBRPlayer(SolverStrategy(fresh), cards, rules, stacks, sb, bb, flop_samples=200)
     victim = blueprint_player(tiny_holdem, SolverStrategy(fresh), cards)
+    showdowns = []
+    value = lbr.showdown_value
+
+    def recorded(state: _core.HandState, board: list[int]) -> float | None:
+        showdowns.append(v := value(state, board))
+        return v
+
+    lbr.showdown_value = recorded  # type: ignore[method-assign]
     r = duplicate_match(lbr, victim, 60, stacks, sb, bb, seed=4)
     assert r.mbb > r.ci95 > 0
+    assert showdowns
+    assert None not in showdowns
+    # Range-expected showdowns: same win rate in expectation, less variance.
+    assert r.ci95 < r.ci95_raw
+    assert abs(r.mbb - r.mbb_raw) < r.ci95_raw
 
 
 def test_array_strategy_round_trip(solver: _core.CfrSolver, tmp_path: Path) -> None:

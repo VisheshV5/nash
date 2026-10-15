@@ -215,6 +215,41 @@ def test_river_decisions_use_search(agent: RegretAgent) -> None:
     assert off.source == "blueprint"
 
 
+TURN: dict[str, Any] = {
+    "num_players": 2,
+    "hero_seat": "BTN",
+    "hero_cards": ["Ah", "9h"],
+    "board": ["Kd", "9s", "5h", "2c"],
+    "street": "turn",
+    "pot": 8.0,
+    "players": [
+        {"seat": "BTN", "stack": 97.5, "status": "active"},
+        {"seat": "BB", "stack": 94.5, "status": "active"},
+    ],
+    "action_history": {
+        "preflop": [["BTN", "raise", 2.5], ["BB", "call", 2.5]],
+        "flop": [["BB", "check"], ["BTN", "check"]],
+        "turn": [["BB", "bet", 3.0]],
+    },
+    "to_act": "BTN",
+}
+
+
+def test_turn_decisions_use_search(agent: RegretAgent) -> None:
+    d = agent.act(TURN, explain=True, seed=0)
+    assert d.source == "subgame_solve"
+    assert {"fold", "call"} <= set(d.strategy)
+    assert sum(d.strategy.values()) == pytest.approx(1.0, abs=1e-3)
+    assert d.explain is not None
+    assert d.explain["search"]["iterations"] >= 10
+    assert d.latency_ms < 3000  # loose: CI machines are slow; the budget is checked in RESULTS
+    river_only = agent.config.search.model_copy(update={"streets": ["river"]})
+    blueprint_turn = RegretAgent(
+        agent.config.model_copy(update={"search": river_only}), agent.strategy, agent.cards
+    )
+    assert blueprint_turn.act(TURN, seed=0).source == "blueprint"
+
+
 def test_search_ranges_follow_the_blueprint(agent: RegretAgent) -> None:
     from regret.search.river import bayes_ranges
 

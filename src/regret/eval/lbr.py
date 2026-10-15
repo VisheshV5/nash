@@ -19,6 +19,13 @@ Two standard restrictions keep it tractable and exact:
   back exactly and LBR always knows which abstract infoset the blueprint is in.
 
 Whatever LBR wins (mbb/hand) is a lower bound on the blueprint's exploitability.
+
+**Range-expected showdowns.** Because LBR knows the blueprint's strategy, its tracked range is
+the exact posterior over the blueprint's hole cards given everything LBR has seen. So at a
+showdown LBR can report its expected result against that range (all runouts of any missing
+board cards included) in place of the result against the one hand the blueprint happened to
+hold. That is the conditional expectation of the same quantity, so the win rate is unchanged in
+expectation, but the luck of the blueprint's cards is gone from the variance.
 """
 
 from __future__ import annotations
@@ -97,13 +104,20 @@ class LBRPlayer(_Base):
             self._buckets = (len(board), board_buckets(self.cards, board))
         return self._buckets[1]
 
-    def _policy_matrix(self, history: int, n_actions: int, board: list[int]) -> NDArray[np.float64]:
-        """Rows: hole index; columns: the blueprint's probability of each abstract action."""
+    def _policy_matrix(
+        self, history: int, actions: list[Action], board: list[int]
+    ) -> NDArray[np.float64]:
+        """Rows: hole index; columns: the blueprint's probability of each abstract action.
+
+        Where the blueprint has no strategy it checks or calls (BlueprintPlayer's fallback).
+        """
+        n = len(actions)
         buckets = self._buckets_on(board)
-        out = np.full((len(_PAIRS), n_actions), 1.0 / n_actions)
+        out = np.zeros((len(_PAIRS), n))
+        out[:, next(i for i, a in enumerate(actions) if a.type == _core.ActionType.CHECK_CALL)] = 1
         for b in np.unique(buckets[buckets >= 0]):
             p = self.strategy.probs(history, int(b))
-            if p is not None and len(p) == n_actions:
+            if p is not None and len(p) == n:
                 out[buckets == b] = p
         return out
 
@@ -115,11 +129,26 @@ class LBRPlayer(_Base):
         dist = t.translate(state, action)
         index = max(dist, key=lambda d: d[1])[0]
         if seat != self.seat:  # Bayes update of the blueprint's range
-            probs = self._policy_matrix(t.history, len(t.actions()), board)[:, index]
+            probs = self._policy_matrix(t.history, t.actions(), board)[:, index]
             self.range *= probs
             blocked = np.isin(_PAIRS, board).any(1)
             self.range[blocked] = 0
         t.apply_index(index)
+
+    def showdown_value(self, state: _core.HandState, board: list[int]) -> float | None:
+        """LBR's expected result (chips) at this showdown against the blueprint's range."""
+        t = self.tracker
+        if t.lost or not t.state.is_terminal or t.state.street != state.street:
+            return None
+        weights = self.range.copy()
+        weights[np.isin(_PAIRS, board).any(1)] = 0
+        if weights.sum() <= 0:
+            return None
+        w = (weights / weights.max()).astype(np.float32)
+        # Exact over every runout from the flop on; sampled (unbiased) for preflop all-ins.
+        seed = int(self.rng.integers(2**63))
+        eq = _core.equity_vs_range(self.hole, board, w, 2000, seed)
+        return (2 * eq - 1) * min(state.contributed)
 
     # -- LBR's own decision
 
@@ -158,9 +187,7 @@ class LBRPlayer(_Base):
             if child.is_terminal:
                 continue
             child_acts = _core.abstract_actions(child, t.rules)
-            policy = self._policy_matrix(
-                _core.nlhe_extend_history(t.history, i), len(child_acts), board
-            )
+            policy = self._policy_matrix(_core.nlhe_extend_history(t.history, i), child_acts, board)
             fold_col = [j for j, c in enumerate(child_acts) if c.type == _core.ActionType.FOLD]
             p_fold_h = policy[:, fold_col[0]] if fold_col else np.zeros(len(_PAIRS))
             total = weights.sum()
