@@ -77,6 +77,36 @@ uv run cmake --build build/cpp-tests
 ./build/cpp-tests/regret_tests --slow   # + every turn deal, every turn/river index (~3 min)
 ```
 
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph offline[Offline, once per config]
+    A[Card abstraction<br/>hand features + k-means<br/>scripts/build_abstraction.py] --> B[MCCFR training<br/>C++, 6 threads, checkpoints<br/>scripts/train.py]
+    B --> C[Bundle export<br/>dense strategy + card tables<br/>scripts/export.py]
+  end
+  subgraph online[Online, per decision]
+    S[GameState JSON] --> V[Validate + replay<br/>rules engine]
+    V --> T[Map onto the<br/>abstract game]
+    T --> P{Street}
+    P -- preflop / flop / turn --> BP[Blueprint lookup]
+    P -- river --> RS[Real-time search<br/>vector CFR+, exact hands]
+    BP --> O[Strategy + action]
+    RS --> O
+  end
+  C --> T
+```
+
+- **Rules engine** (C++): 2-6 player no-limit hold'em with side pots, fuzzed against PokerKit.
+- **Card abstraction:** hands grouped per street by strength and potential (500 buckets
+  heads-up), with lossless suit-isomorphic indexing.
+- **Blueprint:** external-sampling MCCFR with Linear CFR and pruning, heads-up 100bb, 24.6M
+  information sets.
+- **Search:** the river is re-solved at decision time over all 1,326 hands with a richer bet
+  menu, from ranges the blueprint implies.
+- **Evaluation:** baseline bots, duplicate matches with confidence intervals, and LBR
+  exploitability. Results are in [RESULTS.md](RESULTS.md).
+
 ## Training
 
 Training runs for hours to days, so it checkpoints automatically, resumes exactly, and stops
