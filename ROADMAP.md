@@ -232,7 +232,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 **Acceptance:** both examples run from a clean install. API validation tests pass. OpenAPI docs are generated.
 **Depends on:** M4 (thin), M5 (full routing).
 
-### M7 — Bundle, packaging, distribution (+ distillation only if needed) (~3–4 days; +3–4 days if distilling)  🔄 *registry + release workflow done; first published release pending the trained bundle*
+### M7 — Bundle, packaging, distribution (+ distillation only if needed) (~3–4 days; +3–4 days if distilling)  🔄 *registry, release workflow and a 45 MB bundle format done (no distillation needed); first published release pending the trained bundle*
 **Deliverables**
 - **Prebuilt wheels** with `cibuildwheel` in a GitHub Actions release workflow (macOS-arm64, Linux x86_64 manylinux; Python 3.11–3.13), published to PyPI as `regret-poker` (import name `regret`).
 - **Bundle registry:** bundles attached to GitHub Releases, a small `registry.json` (name → URL, sha256, size, version), `RegretAgent.load(name_or_path)` downloads, verifies the checksum and caches in `~/.cache/regret`. Offline use works with a local path.
