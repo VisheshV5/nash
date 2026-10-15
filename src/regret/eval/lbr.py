@@ -94,7 +94,7 @@ class LBRPlayer(_Base):
         buckets = self._buckets_on(board)
         out = np.full((len(_PAIRS), n_actions), 1.0 / n_actions)
         for b in np.unique(buckets[buckets >= 0]):
-            p = self.strategy.probs(_core.nlhe_infoset_key(history, int(b)))
+            p = self.strategy.probs(history, int(b))
             if p is not None and len(p) == n_actions:
                 out[buckets == b] = p
         return out

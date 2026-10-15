@@ -3,7 +3,8 @@
     bundle/
       manifest.json      version, config hash, training iteration, sizes
       config.yaml        the hold'em config it was trained with
-      strategy.npz       average strategy: sorted infoset keys, offsets, uint8 probabilities
+      strategy.npz       average strategy: one dense block per abstract decision node
+                         (buckets x actions, uint8), compressed
       cards/             card abstraction for runtime bucketing (river table left out)
 
 Works on any checkpoint, including one from a run still in progress.
@@ -17,13 +18,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import yaml
 
 from regret import __version__
+from regret.abstraction.actions import rules_from_config
 from regret.abstraction.build import artifact_dir
 from regret.cfr.checkpoint import Checkpoint
 from regret.cfr.trainer import RunSpec
-from regret.eval.strategy import ArrayStrategy
+from regret.eval.setup import table_chips
+from regret.eval.strategy import ArrayStrategy, DenseStrategy, StrategyTable, decision_nodes
 from regret.utils.config import RegretConfig
 
 _CARD_FILES = (
@@ -43,8 +47,16 @@ def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[
     solver.load(checkpoint.payload)
 
     out.mkdir(parents=True, exist_ok=True)
-    strategy = ArrayStrategy.from_solver(solver)
+    keyed = ArrayStrategy.from_solver(solver)
+    stacks, sb, bb = table_chips(cfg)
+    c = cfg.cards
+    strategy = DenseStrategy.build(
+        keyed,
+        decision_nodes(rules_from_config(cfg.actions), stacks, sb, bb),
+        (169, c.flop_buckets, c.turn_buckets, c.river_buckets),
+    )
     strategy.save(out / "strategy.npz")
+    visited = len(keyed)
     (out / "cards").mkdir(exist_ok=True)
     src = artifact_dir(cfg.cards)
     for name in _CARD_FILES:
@@ -60,7 +72,7 @@ def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[
         "fingerprint": spec.fingerprint,
         "iteration": checkpoint.iteration,
         "trained_seconds": checkpoint.header.get("elapsed_s"),
-        "infosets": len(strategy),
+        "infosets": visited,
         "bytes": size,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -68,7 +80,14 @@ def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[
     return manifest
 
 
-def load_bundle(path: Path) -> tuple[RegretConfig, ArrayStrategy, Path]:
+def load_bundle(path: Path) -> tuple[RegretConfig, StrategyTable, Path]:
     """(config, strategy, card abstraction directory) of a bundle."""
     cfg = RegretConfig.model_validate(yaml.safe_load((path / "config.yaml").read_text()))
-    return cfg, ArrayStrategy.load(path / "strategy.npz"), path / "cards"
+    with np.load(path / "strategy.npz") as z:
+        dense = "history" in z.files
+    strategy: StrategyTable = (
+        DenseStrategy.load(path / "strategy.npz")
+        if dense
+        else ArrayStrategy.load(path / "strategy.npz")
+    )
+    return cfg, strategy, path / "cards"

@@ -45,7 +45,7 @@ from regret.engine.state import (
     parse_game_state,
 )
 from regret.eval.players import AbstractTracker
-from regret.eval.strategy import ArrayStrategy, StrategyTable
+from regret.eval.strategy import StrategyTable
 from regret.export.bundle import load_bundle
 from regret.search.river import Step, bayes_ranges, river_start
 from regret.utils.config import RegretConfig
@@ -132,7 +132,7 @@ class RegretAgent:
             "name": self.config.name,
             "players": self.config.table.num_players,
             "starting_stack_bb": self.trained_stack_bb,
-            "infosets": len(self.strategy) if isinstance(self.strategy, ArrayStrategy) else None,
+            "infosets": self.manifest.get("infosets"),
             "bundle": self.manifest,
         }
 
@@ -368,7 +368,7 @@ class RegretAgent:
         if not t.in_sync(real):
             return [(_core.Action.check_call(), 1.0)]
         acts = t.actions()
-        p = self.strategy.probs(_core.nlhe_infoset_key(t.history, bucket))
+        p = self.strategy.probs(t.history, bucket)
         if p is None or len(p) != len(acts):
             return [(_core.Action.check_call(), 1.0)]
         return [(t.to_real(real, i), float(p[i])) for i in range(len(acts)) if p[i] > 0]

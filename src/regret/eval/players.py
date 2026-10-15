@@ -191,8 +191,7 @@ class BlueprintPlayer(_Base):
         t.apply_index(index)
 
     def policy(self, board: list[int]) -> np.ndarray | None:
-        key = _core.nlhe_infoset_key(self.tracker.history, self.cards.bucket(self.hole, board))
-        return self.strategy.probs(key)
+        return self.strategy.probs(self.tracker.history, self.cards.bucket(self.hole, board))
 
     def act(self, state: _core.HandState, board: list[int]) -> Action:
         if not self.tracker.in_sync(state):

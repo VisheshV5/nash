@@ -17,7 +17,7 @@ from regret.eval.lbr import LBRPlayer, board_buckets
 from regret.eval.match import duplicate_match, play_hand
 from regret.eval.players import AlwaysCall, EquityThreshold, RandomPlayer, _Base
 from regret.eval.setup import blueprint_player, table_chips
-from regret.eval.strategy import ArrayStrategy, SolverStrategy
+from regret.eval.strategy import ArrayStrategy, SolverStrategy, decision_nodes, infoset_keys
 from regret.export.bundle import export_bundle, load_bundle
 from regret.utils.config import RegretConfig
 
@@ -104,13 +104,20 @@ def test_export_and_load_bundle(
     cfg2, strategy, cards_dir = load_bundle(tmp_path / "bundle")
     assert cfg2 == cfg
     live = SolverStrategy(solver)
-    keys, _, _ = solver.export_strategy()
-    for key in keys[:: max(1, len(keys) // 50)]:
-        a, b = strategy.probs(int(key)), live.probs(int(key))
-        assert a is not None
-        assert b is not None
-        np.testing.assert_allclose(a, b, atol=0.01)  # uint8 quantization
-    assert strategy.probs(12345) is None
+    # Walk real infosets: every abstract decision node, a spread of buckets.
+    stacks, sb, bb = table_chips(cfg)
+    nodes = decision_nodes(rules_from_config(cfg.actions), stacks, sb, bb)
+    buckets = (169, cfg.cards.flop_buckets, cfg.cards.turn_buckets, cfg.cards.river_buckets)
+    checked = 0
+    for node in nodes[:: max(1, len(nodes) // 300)]:
+        for bucket in range(0, buckets[node.street], 3):
+            a, b = strategy.probs(node.history, bucket), live.probs(node.history, bucket)
+            assert (a is None) == (b is None)
+            if a is not None and b is not None:
+                np.testing.assert_allclose(a, b, atol=0.01)  # uint8 quantization
+                checked += 1
+    assert checked > 100
+    assert strategy.probs(12345, 0) is None
     assert CardAbstraction.load(cards_dir).bucket("AsKs", "Qs7h2d") >= 0
 
 
@@ -197,7 +204,7 @@ def test_array_strategy_round_trip(solver: _core.CfrSolver, tmp_path: Path) -> N
     s.save(tmp_path / "s.npz")
     t = ArrayStrategy.load(tmp_path / "s.npz")
     key = int(s.keys[len(s) // 2])
-    a, b = s.probs(key), t.probs(key)
+    a, b = s.probs_by_key(key), t.probs_by_key(key)
     assert a is not None
     assert b is not None
     np.testing.assert_allclose(a, b, atol=0.01)
@@ -215,3 +222,11 @@ def test_periodic_eval_report(tiny_holdem: RegretConfig, solver: _core.CfrSolver
         "unseen_infosets",
         "fallbacks",
     }
+
+
+def test_numpy_infoset_keys_match_cpp() -> None:
+    rng = np.random.default_rng(0)
+    for history in [int(_core.nlhe_history_root()), *map(int, rng.integers(0, 2**63, 5))]:
+        buckets = np.arange(0, 500, 7)
+        want = [_core.nlhe_infoset_key(history, int(b)) for b in buckets]
+        assert infoset_keys(history, buckets).tolist() == want

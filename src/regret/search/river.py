@@ -46,7 +46,7 @@ def bayes_ranges(
         b = buckets[step.street]
         like = np.ones(len(_PAIRS))
         for bucket in np.unique(b[b >= 0]):
-            p = strategy.probs(_core.nlhe_infoset_key(step.history, int(bucket)))
+            p = strategy.probs(step.history, int(bucket))
             if p is not None and len(p) == step.num_actions:
                 like[b == bucket] = p[step.index]
         ranges[step.seat] *= like
