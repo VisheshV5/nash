@@ -300,6 +300,7 @@ class RegretAgent:
             min_iterations=20,
             max_iterations=100_000,
             max_seconds=self.config.search.time_budget_ms / 1000,
+            threads=self.config.search.threads,
         )
 
     # ------------------------------------------------------------------ pieces

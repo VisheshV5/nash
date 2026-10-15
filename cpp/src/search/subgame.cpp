@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
+#include <thread>
 
 #include "regret/abstraction/card_features.hpp"
 #include "regret/evaluator.hpp"
@@ -85,11 +86,17 @@ class RiverSolver {
 
     HandState start = p.start;
     build(start, 0, true);
-    scratch_.resize(static_cast<std::size_t>(max_depth_) + 1);
-    for (Scratch& sc : scratch_) {
-      sc.sigma.resize(kMaxActions * kHands);
-      sc.reach.resize(kHands);
-      sc.child.resize(kMaxActions * kHands);
+    // Pool 0 serves the calling thread; pool a + 1 serves the thread for root action a.
+    threads_ = std::max(1, p.threads);
+    const std::size_t pools = threads_ > 1 ? kMaxActions + 1 : 1;
+    pools_.resize(pools);
+    for (auto& pool : pools_) {
+      pool.resize(static_cast<std::size_t>(max_depth_) + 1);
+      for (Scratch& sc : pool) {
+        sc.sigma.resize(kMaxActions * kHands);
+        sc.reach.resize(kHands);
+        sc.child.resize(kMaxActions * kHands);
+      }
     }
     if (current_ < 0) throw std::invalid_argument("search: the real river actions end the hand");
     regret_.assign(slots_, 0.0f);
@@ -236,18 +243,20 @@ class RiverSolver {
   };
   // One set of buffers per tree depth, all allocated before solving: recursion holds pointers
   // into shallower levels, so the pool must never reallocate.
-  Scratch& scratch(int depth) { return scratch_[static_cast<std::size_t>(depth)]; }
+  Scratch& scratch(int depth, int pool) {
+    return pools_[static_cast<std::size_t>(pool)][static_cast<std::size_t>(depth)];
+  }
 
   // CFR+ pass for `player`: writes counterfactual values of player's hands at `id` into `value`.
   void cfr(int id, int player, const float* own, const float* opp, float weight, int depth,
-           float* value) {
+           float* value, int pool = 0) {
     const Node& n = nodes_[id];
     if (n.kind != Node::kDecision) {
       terminal(n, player, opp, value);
       return;
     }
     const std::size_t k = n.actions.size();
-    Scratch& sc = scratch(depth);
+    Scratch& sc = scratch(depth, pool);
     float* sigma = sc.sigma.data();
     for (int h = 0; h < kHands; ++h) {
       float total = 0;
@@ -263,12 +272,44 @@ class RiverSolver {
       }
     }
     std::fill(value, value + kHands, 0.0f);
+    if (depth == 0 && threads_ > 1 && k > 1) {
+      // Root: each action's subtree touches only its own nodes, so solve them side by side.
+      const bool mine = n.player == player;
+      std::vector<std::thread> pool_threads;
+      for (std::size_t a = 0; a < k; ++a) {
+        pool_threads.emplace_back([&, a] {
+          const int child_pool = static_cast<int>(a) + 1;
+          float* r = scratch(0, child_pool).reach.data();
+          const float* base = mine ? own : opp;
+          for (int h = 0; h < kHands; ++h) r[h] = base[h] * sigma[a * kHands + h];
+          cfr(n.children[a], player, mine ? r : own, mine ? opp : r, weight, 1,
+              sc.child.data() + a * kHands, child_pool);
+        });
+      }
+      for (auto& t : pool_threads) t.join();
+      for (std::size_t a = 0; a < k; ++a) {
+        const float* cv = sc.child.data() + a * kHands;
+        for (int h = 0; h < kHands; ++h) value[h] += mine ? sigma[a * kHands + h] * cv[h] : cv[h];
+      }
+      if (mine) {
+        for (std::size_t a = 0; a < k; ++a) {
+          const float* cv = sc.child.data() + a * kHands;
+          float* r = &regret_[n.offset + a * kHands];
+          float* s = &sum_[n.offset + a * kHands];
+          for (int h = 0; h < kHands; ++h) {
+            r[h] = std::max(0.0f, r[h] + cv[h] - value[h]);
+            s[h] += weight * own[h] * sigma[a * kHands + h];
+          }
+        }
+      }
+      return;
+    }
     float* reach = sc.reach.data();
     if (n.player == player) {
       for (std::size_t a = 0; a < k; ++a) {
         float* cv = sc.child.data() + a * kHands;
         for (int h = 0; h < kHands; ++h) reach[h] = own[h] * sigma[a * kHands + h];
-        cfr(n.children[a], player, reach, opp, weight, depth + 1, cv);
+        cfr(n.children[a], player, reach, opp, weight, depth + 1, cv, pool);
         for (int h = 0; h < kHands; ++h) value[h] += sigma[a * kHands + h] * cv[h];
       }
       for (std::size_t a = 0; a < k; ++a) {
@@ -284,7 +325,7 @@ class RiverSolver {
       float* cv = sc.child.data();
       for (std::size_t a = 0; a < k; ++a) {
         for (int h = 0; h < kHands; ++h) reach[h] = opp[h] * sigma[a * kHands + h];
-        cfr(n.children[a], player, own, reach, weight, depth + 1, cv);
+        cfr(n.children[a], player, own, reach, weight, depth + 1, cv, pool);
         for (int h = 0; h < kHands; ++h) value[h] += cv[h];
       }
     }
@@ -361,7 +402,8 @@ class RiverSolver {
   int current_ = -1;
   std::vector<float> regret_, sum_;
   Vec captured_;
-  std::vector<Scratch> scratch_;
+  std::vector<std::vector<Scratch>> pools_;
+  int threads_ = 1;
   Vec root_value_ = Vec(kHands);
   static constexpr std::size_t kMaxActions = 16;
   int max_depth_ = 0;

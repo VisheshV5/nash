@@ -41,6 +41,7 @@ struct RiverProblem {
   int min_iterations = 50;
   int max_iterations = 2000;
   double max_seconds = 0.8;
+  int threads = 1;  // > 1 solves the subtrees under the root decision in parallel
 };
 
 struct RiverSolution {

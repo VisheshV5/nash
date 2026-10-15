@@ -132,3 +132,26 @@ def test_search_rejects_bad_problems() -> None:
         _core.solve_river(flop, BOARD, [], u, u)
     with pytest.raises(ValueError, match="end the hand"):
         _core.solve_river(river_start(), BOARD, [A.check_call(), A.check_call()], u, u)
+
+
+def test_parallel_solve_is_reproducible_and_converges() -> None:
+    u = np.ones(1326, np.float32)
+    runs = [
+        _core.solve_river(
+            river_start(),
+            BOARD,
+            [],
+            u,
+            u,
+            min_iterations=100,
+            max_iterations=100,
+            max_seconds=60,
+            threads=4,
+        )
+        for _ in range(2)
+    ]
+    np.testing.assert_array_equal(runs[0]["strategy"], runs[1]["strategy"])
+    serial = _core.solve_river(
+        river_start(), BOARD, [], u, u, min_iterations=100, max_iterations=100, max_seconds=60
+    )
+    assert runs[0]["exploitability"] == pytest.approx(serial["exploitability"], rel=0.05)

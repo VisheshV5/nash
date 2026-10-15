@@ -275,4 +275,5 @@ def solve_river(
     min_iterations: int = 50,
     max_iterations: int = 2000,
     max_seconds: float = 0.8,
+    threads: int = 1,
 ) -> dict[str, Any]: ...

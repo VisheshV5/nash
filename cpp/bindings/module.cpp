@@ -652,7 +652,7 @@ PYBIND11_MODULE(_core, m) {
       [=](const regret::HandState& start, const std::vector<int>& board,
           const std::vector<regret::Action>& path, const F32Array& range0, const F32Array& range1,
           std::vector<double> bet_pot, std::vector<double> raise_pot, int max_raises, bool all_in,
-          int min_iterations, int max_iterations, double max_seconds) {
+          int min_iterations, int max_iterations, double max_seconds, int threads) {
         namespace rs = regret::search;
         if (board.size() != 5) throw py::value_error("the river needs a 5-card board");
         if (range0.size() != rs::kHands || range1.size() != rs::kHands) {
@@ -672,6 +672,7 @@ PYBIND11_MODULE(_core, m) {
         p.min_iterations = min_iterations;
         p.max_iterations = max_iterations;
         p.max_seconds = max_seconds;
+        p.threads = threads;
         rs::RiverSolution sol;
         {
           py::gil_scoped_release release;
@@ -694,6 +695,6 @@ PYBIND11_MODULE(_core, m) {
       py::arg("bet_pot") = std::vector<double>{0.33, 0.5, 0.75, 1.0, 1.5},
       py::arg("raise_pot") = std::vector<double>{0.5, 1.0}, py::arg("max_raises") = 3,
       py::arg("all_in") = true, py::arg("min_iterations") = 50, py::arg("max_iterations") = 2000,
-      py::arg("max_seconds") = 0.8,
+      py::arg("max_seconds") = 0.8, py::arg("threads") = 1,
       "Re-solve the river (heads-up) from its start with exact hands; see regret/search.");
 }
