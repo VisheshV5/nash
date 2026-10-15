@@ -27,6 +27,7 @@ import json
 import time
 import warnings
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -46,6 +47,7 @@ from regret.engine.state import (
 from regret.eval.players import AbstractTracker
 from regret.eval.strategy import ArrayStrategy, StrategyTable
 from regret.export.bundle import load_bundle
+from regret.search.river import Step, bayes_ranges, river_start
 from regret.utils.config import RegretConfig
 
 Mode = Literal["sample", "argmax"]
@@ -84,6 +86,7 @@ class _Branch:
     prob: float
     tracker: AbstractTracker
     translations: list[str]
+    steps: list[Step]
 
 
 class RegretAgent:
@@ -142,7 +145,9 @@ class RegretAgent:
         explain: bool = False,
         mode: Mode = "sample",
         seed: int | None = None,
+        search: bool | None = None,
     ) -> Decision:
+        """Decide for the player to act in `state` (SPEC §4). `search` overrides the config."""
         t0 = time.perf_counter()
         v = parse_game_state(state)
         if v.engine.num_players != self.config.table.num_players:
@@ -151,22 +156,73 @@ class RegretAgent:
                 f"this bundle plays {self.config.table.num_players}-handed; got "
                 f"{v.engine.num_players} players (6-max arrives in v1.2)",
             )
-        notes = self._stack_warnings(v)
-        real = v.engine
-        branches = self._replay(v)
-        board = v.board
-        bucket = self.cards.bucket(v.hero_cards, board)
+        e = v.engine
+        raw = v.raw
+        sb = round(
+            (raw.small_blind if raw.small_blind is not None else raw.big_blind / 2)
+            * v.chips_per_unit
+        )
+        decision = self.decide(
+            e,
+            [e.stacks[i] + e.contributed[i] for i in range(e.num_players)],
+            sb,
+            round(raw.big_blind * v.chips_per_unit),
+            v.hero_cards,
+            v.board,
+            to_units=v.to_units,
+            explain=explain,
+            mode=mode,
+            seed=seed,
+            search=search,
+        )
+        decision.warnings = self._stack_warnings(v) + decision.warnings
+        decision.latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        return decision
+
+    def decide(
+        self,
+        real: _core.HandState,
+        starting: list[int],
+        sb: int,
+        bb: int,
+        hero_cards: list[int],
+        board: list[int],
+        *,
+        to_units: Callable[[int], float] = lambda c: c / CHIPS_PER_BB,
+        explain: bool = False,
+        mode: Mode = "sample",
+        seed: int | None = None,
+        search: bool | None = None,
+    ) -> Decision:
+        """Core decision on an engine state that recorded its history (no JSON involved)."""
+        t0 = time.perf_counter()
+        branches = self._replay(real.history, starting, sb, bb)
+        bucket = self.cards.bucket(hero_cards, board)
+        use_search = (self.config.search.enabled if search is None else search) and (
+            real.street == _core.Street.RIVER and real.num_players == 2
+        )
 
         mixed: dict[tuple[int, int], float] = defaultdict(float)
         actions: dict[tuple[int, int], _core.Action] = {}
         fallback_mass = 0.0
-        for br in branches:
-            for action, p in self._branch_policy(br, real, bucket):
-                key = (int(action.type), action.amount)
-                mixed[key] += br.prob * p
-                actions[key] = action
-            if not br.tracker.in_sync(real):
-                fallback_mass += br.prob
+        solve: dict[str, Any] | None = None
+        hero = _core.hole_index(*hero_cards)
+        if use_search:
+            solve = self._solve_river(real, starting, sb, bb, branches[0], board)
+            for i, action in enumerate(solve["actions"]):
+                p = float(solve["strategy"][i, hero])
+                if p > 0:
+                    key = (int(action.type), action.amount)
+                    mixed[key] += p
+                    actions[key] = action
+        else:
+            for br in branches:
+                for action, p in self._branch_policy(br, real, bucket):
+                    key = (int(action.type), action.amount)
+                    mixed[key] += br.prob * p
+                    actions[key] = action
+                if not br.tracker.in_sync(real):
+                    fallback_mass += br.prob
         total = sum(mixed.values())
         ordered = sorted(mixed, key=lambda k: (k[0], k[1]))
 
@@ -185,37 +241,65 @@ class RegretAgent:
             rng = np.random.default_rng(seed)
             pick = int(rng.choice(len(ordered), p=probs / probs.sum()))
         chosen = actions[ordered[pick]]
-        recommended = self._recommended(real, chosen, labels[ordered[pick]], v)
+        recommended = self._recommended(real, chosen, labels[ordered[pick]], to_units)
 
         explanation = None
         if explain:
+            street = ["preflop", "flop", "turn", "river"][int(real.street)]
             explanation = {
-                "street": ["preflop", "flop", "turn", "river"][int(real.street)],
+                "street": street,
                 "bucket": bucket,
-                "buckets_on_street": self.cards.buckets[
-                    ["preflop", "flop", "turn", "river"][int(real.street)]
-                ],
+                "buckets_on_street": self.cards.buckets[street],
                 "equity_vs_random_hand": round(
                     _core.equity_vs_range(
-                        v.hero_cards, board, np.ones(1326, np.float32), 500, seed or 0
+                        hero_cards, board, np.ones(1326, np.float32), 500, seed or 0
                     ),
                     4,
                 ),
-                "pot": v.to_units(real.pot),
-                "to_call": v.to_units(real.legal_actions().call_amount),
+                "pot": to_units(real.pot),
+                "to_call": to_units(real.legal_actions().call_amount),
                 "abstract_histories": [
                     {"probability": round(b.prob, 4), "translations": b.translations}
                     for b in branches
                 ],
                 "fallback_share": round(fallback_mass, 4),
             }
+            if solve is not None:
+                explanation["search"] = {
+                    "iterations": solve["iterations"],
+                    "solve_ms": round(solve["seconds"] * 1000, 1),
+                    "nodes": solve["nodes"],
+                    "exploitability_chips": round(solve["exploitability"], 2),
+                    "hand_value": to_units(round(float(solve["values"][hero]))),
+                }
         return Decision(
             strategy=strategy,
             recommended=recommended,
-            source="blueprint",
+            source="subgame_solve" if use_search else "blueprint",
             latency_ms=round((time.perf_counter() - t0) * 1000, 2),
             explain=explanation,
-            warnings=notes,
+        )
+
+    def _solve_river(
+        self,
+        real: _core.HandState,
+        starting: list[int],
+        sb: int,
+        bb: int,
+        branch: _Branch,
+        board: list[int],
+    ) -> dict[str, Any]:
+        start, path = river_start(real.history, starting, sb, bb)
+        r0, r1 = bayes_ranges(branch.steps, board, self.cards, self.strategy)
+        return _core.solve_river(
+            start,
+            board,
+            path,
+            r0,
+            r1,
+            min_iterations=20,
+            max_iterations=100_000,
+            max_seconds=self.config.search.time_budget_ms / 1000,
         )
 
     # ------------------------------------------------------------------ pieces
@@ -233,20 +317,19 @@ class RegretAgent:
             return [msg]
         return []
 
-    def _replay(self, v: ValidatedState) -> list[_Branch]:
+    def _replay(
+        self,
+        history: list[tuple[_core.Street, int, _core.Action]],
+        starting: list[int],
+        sb: int,
+        bb: int,
+    ) -> list[_Branch]:
         """Abstract histories consistent with the real one, most likely first."""
-        e = v.engine
-        starting = [e.stacks[i] + e.contributed[i] for i in range(e.num_players)]
-        raw = v.raw
-        sb = round(
-            (raw.small_blind if raw.small_blind is not None else raw.big_blind / 2)
-            * v.chips_per_unit
-        )
-        real = _core.HandState(starting, sb, round(raw.big_blind * v.chips_per_unit))
+        real = _core.HandState(starting, sb, bb)
         first = AbstractTracker(self.rules, self._abstract_stacks, *self._abstract_blinds)
         first.reset()
-        branches = [_Branch(1.0, first, [])]
-        for _street, _seat, action in e.history:
+        branches = [_Branch(1.0, first, [], [])]
+        for street, seat, action in history:
             grown: list[_Branch] = []
             for br in branches:
                 t = br.tracker
@@ -258,6 +341,7 @@ class RegretAgent:
                     if p <= 0:
                         continue
                     child = _clone(t)
+                    step = Step(seat, int(street), t.history, index, len(t.actions()))
                     child.apply_index(index)
                     note = list(br.translations)
                     if action.type == _core.ActionType.BET_RAISE:
@@ -267,7 +351,7 @@ class RegretAgent:
                                 f"{action_label(real, action)} -> "
                                 f"{action_label(t.state, abstract)} ({p:.0%})"
                             )
-                    grown.append(_Branch(br.prob * p, child, note))
+                    grown.append(_Branch(br.prob * p, child, note, [*br.steps, step]))
             grown.sort(key=lambda b: -b.prob)
             branches = grown[: self.max_branches]
             total = sum(b.prob for b in branches)
@@ -289,7 +373,11 @@ class RegretAgent:
         return [(t.to_real(real, i), float(p[i])) for i in range(len(acts)) if p[i] > 0]
 
     def _recommended(
-        self, real: _core.HandState, action: _core.Action, label: str, v: ValidatedState
+        self,
+        real: _core.HandState,
+        action: _core.Action,
+        label: str,
+        to_units: Callable[[int], float],
     ) -> dict[str, Any]:
         la = real.legal_actions()
         seat = real.to_act
@@ -298,9 +386,9 @@ class RegretAgent:
         if action.type == _core.ActionType.CHECK_CALL:
             if la.call_amount == 0:
                 return {"action": "check", "amount": None}
-            return {"action": "call", "amount": v.to_units(real.bets[seat] + la.call_amount)}
+            return {"action": "call", "amount": to_units(real.bets[seat] + la.call_amount)}
         kind = "all_in" if label == "all_in" else ("bet" if real.current_bet == 0 else "raise")
-        return {"action": kind, "amount": v.to_units(action.amount), "label": label}
+        return {"action": kind, "amount": to_units(action.amount), "label": label}
 
 
 def _clone(t: AbstractTracker) -> AbstractTracker:

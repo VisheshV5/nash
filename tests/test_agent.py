@@ -6,6 +6,7 @@ import copy
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -174,3 +175,52 @@ def test_api_rejects_invalid_states_with_field_errors(client: TestClient) -> Non
     schema_bad = copy.deepcopy(FLOP)
     schema_bad["hero_cards"] = ["As"]
     assert client.post("/act", json=schema_bad).status_code == 422
+
+
+# Checked down to the river, where the big blind bets 3 into 5 (60% pot, off the blueprint's menu).
+RIVER: dict[str, Any] = {
+    "num_players": 2,
+    "hero_seat": "BTN",
+    "hero_cards": ["Ah", "9h"],
+    "board": ["Kd", "9s", "5h", "2c", "7d"],
+    "street": "river",
+    "pot": 8.0,
+    "players": [
+        {"seat": "BTN", "stack": 97.5, "status": "active"},
+        {"seat": "BB", "stack": 94.5, "status": "active"},
+    ],
+    "action_history": {
+        "preflop": [["BTN", "raise", 2.5], ["BB", "call", 2.5]],
+        "flop": [["BB", "check"], ["BTN", "check"]],
+        "turn": [["BB", "check"], ["BTN", "check"]],
+        "river": [["BB", "bet", 3.0]],
+    },
+    "to_act": "BTN",
+}
+
+
+def test_river_decisions_use_search(agent: RegretAgent) -> None:
+    d = agent.act(RIVER, explain=True, seed=0)
+    assert d.source == "subgame_solve"
+    assert set(d.strategy) <= {"fold", "call"} | {
+        k for k in d.strategy if k.startswith("raise_")
+    } | {"all_in"}
+    assert sum(d.strategy.values()) == pytest.approx(1.0, abs=1e-3)
+    assert d.explain is not None
+    s = d.explain["search"]
+    assert s["iterations"] >= 20
+    assert s["solve_ms"] < 1500
+    assert d.latency_ms < 1500  # the 1-second budget, with headroom for a loaded machine
+    off = agent.act(RIVER, search=False, seed=0)
+    assert off.source == "blueprint"
+
+
+def test_search_ranges_follow_the_blueprint(agent: RegretAgent) -> None:
+    from regret.search.river import bayes_ranges
+
+    # No actions: uniform over hands not on the board.
+    board = [0, 17, 33, 42, 51]
+    r0, r1 = bayes_ranges([], board, agent.cards, agent.strategy)
+    assert r0.sum() == pytest.approx(1.0, abs=1e-5)
+    assert (r0 > 0).sum() == 1081
+    np.testing.assert_allclose(r0, r1)
