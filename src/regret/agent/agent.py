@@ -108,7 +108,12 @@ class RegretAgent:
 
     @classmethod
     def load(cls, path: str | Path, max_branches: int = 8) -> RegretAgent:
+        """Load a bundle from a directory, or by registry name (downloaded and cached once)."""
         path = Path(path)
+        if not path.exists() and len(path.parts) == 1:
+            from regret.registry import resolve
+
+            path = resolve(str(path))
         cfg, strategy, cards_dir = load_bundle(path)
         manifest = json.loads((path / "manifest.json").read_text())
         return cls(cfg, strategy, CardAbstraction.load(cards_dir), manifest, max_branches)
