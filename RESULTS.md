@@ -58,6 +58,20 @@ blueprint is near what this abstraction allows, or it is still improving by amou
 can't resolve. The 742M checkpoint (under 3 hours of training) plays as well as anything
 measured since.
 
+**Average vs current strategy after the flop** (Pluribus played its current, regret-matching
+strategy postflop; `scripts/export.py --postflop current`), both from the 6.13B checkpoint:
+
+| Measurement | Average (default) | Current postflop |
+|---|---|---|
+| LBR, same 10,000 deals | 867 ± 278 | 2,195 ± 262 |
+| Head-to-head (current vs average) | | +3 ± 87 over 30,000 hands |
+| vs equity-threshold | +873 ± 281 | +725 ± 270 |
+| Bundle | 44 MB | 16 MB |
+
+The current strategy is far more exploitable (LBR is significant), though it plays the average
+strategy evenly. Bundles keep the average strategy. The comparison also shows LBR does detect
+real differences of this size.
+
 No measurable change: every difference is well inside the ±600 noise of a 3,000-hand LBR.
 Head-to-head the checkpoints are also even (742M vs 314M: -16 ± 159; 3.03B vs 742M: +68 ± 159,
 10,000 hands each). Against the baselines the 3.03B checkpoint wins +1,168 ± 480 (random),

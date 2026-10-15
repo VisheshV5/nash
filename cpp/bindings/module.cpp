@@ -360,11 +360,11 @@ PYBIND11_MODULE(_core, m) {
            "Average strategy at one infoset (empty if never visited).")
       .def(
           "export_strategy",
-          [](const regret::CfrSolver& s) {
+          [](const regret::CfrSolver& s, bool current) {
             regret::CfrSolver::StrategyArrays a;
             {
               py::gil_scoped_release release;
-              a = s.export_strategy();
+              a = s.export_strategy(current);
             }
             return py::make_tuple(
                 py::array_t<std::uint64_t>(static_cast<py::ssize_t>(a.keys.size()), a.keys.data()),
@@ -372,7 +372,9 @@ PYBIND11_MODULE(_core, m) {
                                            a.offsets.data()),
                 py::array_t<float>(static_cast<py::ssize_t>(a.probs.size()), a.probs.data()));
           },
-          "(keys, offsets, probs): the average strategy as flat arrays, keys sorted.")
+          py::arg("current") = false,
+          "(keys, offsets, probs): the average strategy (or with current=True the current, "
+          "regret-matching one) as flat arrays, keys sorted.")
       .def("save", [](const regret::CfrSolver& s) { return py::bytes(s.save()); })
       .def(
           "load", [](regret::CfrSolver& s, const py::bytes& b) { s.load(std::string(b)); },

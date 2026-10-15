@@ -72,8 +72,9 @@ class ArrayStrategy:
         self.keys, self.offsets, self.table = keys, offsets, probs
 
     @classmethod
-    def from_solver(cls, solver: _core.CfrSolver) -> ArrayStrategy:
-        return cls(*solver.export_strategy())
+    def from_solver(cls, solver: _core.CfrSolver, current: bool = False) -> ArrayStrategy:
+        """The solver's average strategy, or with `current` its regret-matching one."""
+        return cls(*solver.export_strategy(current))
 
     @classmethod
     def load(cls, path: Path) -> ArrayStrategy:
@@ -148,7 +149,9 @@ class DenseStrategy:
         source: ArrayStrategy,
         nodes: list[Node],
         buckets_per_street: tuple[int, int, int, int],
+        postflop: ArrayStrategy | None = None,
     ) -> DenseStrategy:
+        """`postflop`, if given, supplies the flop, turn and river nodes instead of `source`."""
         n = len(nodes)
         history = np.array([nd.history for nd in nodes], np.uint64)
         actions = np.array([nd.actions for nd in nodes], np.uint8)
@@ -156,14 +159,18 @@ class DenseStrategy:
         sizes = buckets.astype(np.uint64) * actions.astype(np.uint64)
         offset = np.concatenate([[0], np.cumsum(sizes)[:-1]]).astype(np.uint64)
         table = np.zeros(int(sizes.sum()), np.uint8)
-        quantized = np.round(np.asarray(source.table, np.float32) * 255).astype(np.uint8)
+        sources = [(source, np.round(np.asarray(source.table, np.float32) * 255).astype(np.uint8))]
+        if postflop is not None:
+            q = np.round(np.asarray(postflop.table, np.float32) * 255).astype(np.uint8)
+            sources.append((postflop, q))
         for i in range(n):
             k, nb = int(actions[i]), int(buckets[i])
+            src, quantized = sources[1 if postflop is not None and nodes[i].street > 0 else 0]
             keys = infoset_keys(int(history[i]), np.arange(nb))
-            pos = np.searchsorted(source.keys, keys)
-            pos = np.minimum(pos, len(source.keys) - 1)
-            found = source.keys[pos] == keys
-            starts = source.offsets[pos[found]].astype(np.int64)
+            pos = np.searchsorted(src.keys, keys)
+            pos = np.minimum(pos, len(src.keys) - 1)
+            found = src.keys[pos] == keys
+            starts = src.offsets[pos[found]].astype(np.int64)
             block = table[int(offset[i]) : int(offset[i]) + nb * k].reshape(nb, k)
             if found.any():
                 rows = quantized[starts[:, None] + np.arange(k)[None, :]]

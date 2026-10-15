@@ -121,6 +121,34 @@ def test_export_and_load_bundle(
     assert CardAbstraction.load(cards_dir).bucket("AsKs", "Qs7h2d") >= 0
 
 
+def test_export_with_the_current_strategy_postflop(
+    trained: tuple[RegretConfig, Path], solver: _core.CfrSolver, tmp_path: Path
+) -> None:
+    cfg, run_dir = trained
+    ckpt = latest_checkpoint(run_dir / "checkpoints")
+    assert ckpt is not None
+    with pytest.raises(ValueError, match="postflop"):
+        export_bundle(cfg, ckpt, tmp_path / "bad", postflop="latest")
+    assert export_bundle(cfg, ckpt, tmp_path / "b", postflop="current")["postflop_strategy"] == (
+        "current"
+    )
+    _, strategy, _ = load_bundle(tmp_path / "b")
+    average, current = ArrayStrategy.from_solver(solver), ArrayStrategy.from_solver(solver, True)
+    stacks, sb, bb = table_chips(cfg)
+    nodes = decision_nodes(rules_from_config(cfg.actions), stacks, sb, bb)
+    checked = {0: 0, 1: 0}
+    for node in nodes[:: max(1, len(nodes) // 300)]:
+        want_from = average if node.street == 0 else current
+        for bucket in range(0, 20, 3):
+            got = strategy.probs(node.history, bucket)
+            want = want_from.probs(node.history, bucket)
+            if got is not None and want is not None:
+                np.testing.assert_allclose(got, want, atol=0.01)
+                checked[min(node.street, 1)] += 1
+    assert checked[0] > 0
+    assert checked[1] > 50
+
+
 # ---------------------------------------------------------------- players and matches
 
 

@@ -33,7 +33,8 @@ class CfrSolver {
     std::vector<std::uint32_t> offsets;
     std::vector<float> probs;
   };
-  virtual StrategyArrays export_strategy() const = 0;
+  // `current`: the regret-matching (current) strategy instead of the average.
+  virtual StrategyArrays export_strategy(bool current) const = 0;
   // (key, average strategy) for every visited infoset, sorted by key.
   virtual std::vector<std::pair<std::uint64_t, std::vector<double>>> average_strategy() const = 0;
 

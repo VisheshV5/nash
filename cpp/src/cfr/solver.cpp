@@ -41,15 +41,20 @@ class SolverImpl final : public CfrSolver {
     }
   }
 
-  StrategyArrays export_strategy() const override {
+  StrategyArrays export_strategy(bool current) const override {
     StrategyArrays out;
     out.keys = mccfr_.store().sorted_keys();
     out.offsets.reserve(out.keys.size() + 1);
     out.offsets.push_back(0);
     double buf[InfosetStore::kMaxActions];
     for (std::uint64_t key : out.keys) {
-      const int n = mccfr_.store().find(key).num_actions;
-      regret::average_strategy(mccfr_.store(), key, n, buf);
+      const InfosetStore::Slot slot = mccfr_.store().find(key);
+      const int n = slot.num_actions;
+      if (current) {
+        regret::regret_matching(slot, buf);
+      } else {
+        regret::average_strategy(mccfr_.store(), key, n, buf);
+      }
       for (int a = 0; a < n; ++a) out.probs.push_back(static_cast<float>(buf[a]));
       out.offsets.push_back(static_cast<std::uint32_t>(out.probs.size()));
     }

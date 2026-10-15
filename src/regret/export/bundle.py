@@ -40,7 +40,13 @@ _CARD_FILES = (
 )
 
 
-def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[str, Any]:
+def export_bundle(
+    cfg: RegretConfig, checkpoint: Checkpoint, out: Path, postflop: str = "average"
+) -> dict[str, Any]:
+    """`postflop="current"` plays the current (regret-matching) strategy after the flop is dealt
+    and the average strategy preflop, as Pluribus did."""
+    if postflop not in ("average", "current"):
+        raise ValueError(f"postflop must be 'average' or 'current', not {postflop!r}")
     spec = RunSpec.from_config(cfg)
     if checkpoint.header.get("fingerprint") != spec.fingerprint:
         raise ValueError(f"{checkpoint.path.name} wasn't trained with this config")
@@ -55,6 +61,7 @@ def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[
         keyed,
         decision_nodes(rules_from_config(cfg.actions), stacks, sb, bb),
         (169, c.flop_buckets, c.turn_buckets, c.river_buckets),
+        postflop=ArrayStrategy.from_solver(solver, current=True) if postflop == "current" else None,
     )
     strategy.save(out / "strategy.npz")
     visited = len(keyed)
@@ -74,6 +81,7 @@ def export_bundle(cfg: RegretConfig, checkpoint: Checkpoint, out: Path) -> dict[
         "iteration": checkpoint.iteration,
         "trained_seconds": checkpoint.header.get("elapsed_s"),
         "infosets": visited,
+        "postflop_strategy": postflop,
         "bytes": size,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
     }

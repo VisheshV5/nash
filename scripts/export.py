@@ -23,6 +23,12 @@ def main() -> int:
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--checkpoint", type=Path, help="a specific checkpoint file")
+    ap.add_argument(
+        "--postflop",
+        choices=["average", "current"],
+        default="average",
+        help="strategy after the flop: the average, or the current one (Pluribus)",
+    )
     args = ap.parse_args()
     ckpt = (
         load_checkpoint(args.checkpoint)
@@ -32,7 +38,9 @@ def main() -> int:
     if ckpt is None:
         print(f"no checkpoint in {args.run_dir}", file=sys.stderr)
         return 1
-    print(json.dumps(export_bundle(load_config(args.config), ckpt, args.out), indent=2))
+    print(
+        json.dumps(export_bundle(load_config(args.config), ckpt, args.out, args.postflop), indent=2)
+    )
     return 0
 
 
