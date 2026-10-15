@@ -236,18 +236,18 @@ TURN: dict[str, Any] = {
 
 
 def test_turn_decisions_use_search(agent: RegretAgent) -> None:
-    d = agent.act(TURN, explain=True, seed=0)
+    both = agent.config.search.model_copy(update={"streets": ["turn", "river"]})
+    turn_agent = RegretAgent(
+        agent.config.model_copy(update={"search": both}), agent.strategy, agent.cards
+    )
+    d = turn_agent.act(TURN, explain=True, seed=0)
     assert d.source == "subgame_solve"
     assert {"fold", "call"} <= set(d.strategy)
     assert sum(d.strategy.values()) == pytest.approx(1.0, abs=1e-3)
     assert d.explain is not None
     assert d.explain["search"]["iterations"] >= 10
     assert d.latency_ms < 3000  # loose: CI machines are slow; the budget is checked in RESULTS
-    river_only = agent.config.search.model_copy(update={"streets": ["river"]})
-    blueprint_turn = RegretAgent(
-        agent.config.model_copy(update={"search": river_only}), agent.strategy, agent.cards
-    )
-    assert blueprint_turn.act(TURN, seed=0).source == "blueprint"
+    assert agent.act(TURN, seed=0).source == "blueprint"  # default: river search only
 
 
 def test_search_ranges_follow_the_blueprint(agent: RegretAgent) -> None:

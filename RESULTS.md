@@ -62,8 +62,16 @@ mbb/hand over 8,000 hands (3,372 searches). Not significant. A first 1,000-hand 
 +209 ± 526. The solver's answers at that budget are within ~2.7% of the pot of the subgame's
 equilibrium. To re-measure on the mature blueprint, with the full budget and no training running.
 
+**Blueprint + turn and river search vs blueprint alone** (3.03B blueprint; the turn re-solved
+with one bet size plus all-in on each street, the river with the full search menu; 800 ms
+budget while training occupied the cores, 849 ms per search on average): -114 ± 369 mbb/hand
+over 2,000 hands (1,915 searches). Not significant either way. Turn search is therefore off by
+default (`search.streets: [river]`) and can be turned on with `[turn, river]`. A test that can
+separate a few tens of mbb/hand needs tens of thousands of hands at ~1 s per searched decision:
+days of laptop time, so it waits for the training run to finish.
+
 ## Still to measure
 
 - The blueprint after the full run, and LBR with larger samples.
-- River search on the mature blueprint.
+- River and turn search on the mature blueprint, idle machine, larger samples.
 - Slumbot (needs a 200bb blueprint; Slumbot plays 200bb stacks).
