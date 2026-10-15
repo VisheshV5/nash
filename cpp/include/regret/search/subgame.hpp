@@ -42,6 +42,9 @@ struct RiverProblem {
   int max_iterations = 2000;
   double max_seconds = 0.8;
   int threads = 1;  // > 1 solves the subtrees under the root decision in parallel
+  // Iteration t's strategy enters the average with weight t^average_power. Higher powers
+  // forget the poor early iterations faster (Discounted CFR uses 2).
+  double average_power = 2.0;
 };
 
 struct RiverSolution {

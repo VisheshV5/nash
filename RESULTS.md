@@ -32,8 +32,14 @@ All three are significant wins. Head-to-head against the 167M-iteration checkpoi
 (no difference yet, as expected this early). LBR exploitability lower bound: 1,313 ± 1,169
 mbb/hand (600 hands; the restricted LBR described in ROADMAP M4).
 
+**Blueprint + river search vs blueprint alone** (1-hour blueprint, 300 ms per search while
+training occupied the performance cores, so about 64 solver iterations per decision): +57 ± 206
+mbb/hand over 8,000 hands (3,372 searches). Not significant. A first 1,000-hand run gave
++209 ± 526. The solver's answers at that budget are within ~2.7% of the pot of the subgame's
+equilibrium. To re-measure on the mature blueprint, with the full budget and no training running.
+
 ## Still to measure
 
 - The blueprint after the full run, and LBR with larger samples.
-- Blueprint + river search vs blueprint alone.
+- River search on the mature blueprint.
 - Slumbot (needs a 200bb blueprint; Slumbot plays 200bb stacks).

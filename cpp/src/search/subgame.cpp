@@ -112,7 +112,8 @@ class RiverSolver {
     while (it < p_.max_iterations && (it < p_.min_iterations || elapsed() < p_.max_seconds)) {
       ++it;
       for (int player = 0; player < 2; ++player) {
-        cfr(0, player, range_[player].data(), range_[1 - player].data(), static_cast<float>(it), 0,
+        cfr(0, player, range_[player].data(), range_[1 - player].data(),
+            static_cast<float>(std::pow(static_cast<double>(it), p_.average_power)), 0,
             root_value_.data());
       }
     }
