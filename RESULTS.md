@@ -52,6 +52,11 @@ interval narrows by about 11%, which isn't enough to separate the checkpoints.
 | LBR vs 742M (same 10,000 deals) | 934 ± 267 mbb/hand |
 | 6.13B vs random / always-call / equity-threshold | +1,285 ± 368 / +1,706 ± 225 / +873 ± 281 (10,000 hands each) |
 
+**9.58B iterations (~7.7 h):** vs 742M +43 ± 99, vs 6.13B -29 ± 93 (30,000 hands each); LBR
+801 ± 274 on the same 10,000 deals; vs random / always-call / equity-threshold +1,486 ± 367 /
++1,650 ± 224 / +762 ± 282. LBR on the same deals across checkpoints: 934 (742M), 867 (6.13B),
+801 (9.58B). The direction is consistent; each step is still within the noise.
+
 Past ~0.7B iterations no measurement separates the checkpoints: head-to-head differences are
 under ~100 mbb/hand and LBR differences under ~300 mbb/hand at these sample sizes. Either the
 blueprint is near what this abstraction allows, or it is still improving by amounts these tests
