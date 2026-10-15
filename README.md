@@ -41,6 +41,17 @@ curl -s localhost:8000/act -H 'content-type: application/json' -d @state.json
 `POST /act` (query: `explain`, `mode`, `seed`), `GET /health`, `GET /info`; OpenAPI docs at
 `/docs`. Invalid states get a 422 listing each problem with its field.
 
+### Demo table
+
+```bash
+scripts/demo.sh bundles/hu-100bb        # then open http://localhost:8765/demo/
+```
+
+Play heads-up against Regret, or watch it play one of the baseline bots. Next to the table, a
+panel shows each of Regret's decisions: its strategy over the actions it considered, its equity,
+which hand group it put its cards in, and on the river the live solver's numbers. While you're
+playing, that panel stays hidden until the hand ends, since it would give away Regret's cards.
+
 ## Development
 
 Requires [uv](https://docs.astral.sh/uv/) and a C++17 compiler (Xcode Command Line Tools on macOS).

@@ -258,7 +258,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 
 ### v1.1 — Demo table
 
-### M9 — Web poker table with decision panel (~5–7 days)
+### M9 — Web poker table with decision panel (~5–7 days)  ✅ *done 2026-10-15 (plain HTML/CSS/JS served by the API instead of Vite + Preact: no build step, same result)*
 The UI is **just another client of the REST API**, so it doubles as proof that embedding is easy.
 
 **Deliverables**
