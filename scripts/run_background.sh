@@ -4,12 +4,13 @@
 #   scripts/run_background.sh configs/leduc.yaml [run_dir] [extra train.py args...]
 #
 # Uses tmux when available (attach later with `tmux attach -t <session>`), otherwise nohup.
-# On macOS, wraps the run in `caffeinate -is` so the laptop doesn't sleep (keep it plugged in).
-# Always passes --resume, so re-running this after a crash or reboot picks up where it left off.
+# On a Mac it trains only while plugged in (scripts/train_when_plugged.sh: unplug -> checkpoint
+# and pause, plug in -> resume), kept awake with `caffeinate -is`. ALLOW_BATTERY=1 trains on
+# battery too. Always resumes, so re-running this after a crash or reboot picks up where it left off.
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 fi
 
@@ -19,9 +20,13 @@ run_dir="${1:-runs/$name}"; [[ $# -gt 0 ]] && shift
 cd "$(dirname "$0")/.."
 mkdir -p "$run_dir"
 
-cmd=(uv run python scripts/train.py "$config" --run-dir "$run_dir" --resume "$@")
-if command -v caffeinate >/dev/null 2>&1; then
-  cmd=(caffeinate -is "${cmd[@]}")
+if command -v pmset >/dev/null 2>&1 && [[ "${ALLOW_BATTERY:-0}" != 1 ]]; then
+  cmd=(scripts/train_when_plugged.sh "$config" "$run_dir" "$@")
+else
+  cmd=(uv run python scripts/train.py "$config" --run-dir "$run_dir" --resume "$@")
+  if command -v caffeinate >/dev/null 2>&1; then
+    cmd=(caffeinate -is "${cmd[@]}")
+  fi
 fi
 out="$run_dir/train.out"
 session="regret-$(basename "$run_dir")"
@@ -40,4 +45,9 @@ else
   echo "started with nohup (pid $!); output in $out"
 fi
 echo "  status:  uv run python scripts/status.py $run_dir"
-echo "  stop:    kill -TERM \$(cat $run_dir/train.pid)   (checkpoints, then exits)"
+if [[ "${cmd[0]}" == scripts/train_when_plugged.sh ]]; then
+  echo "  stop:    kill -TERM \$(cat $run_dir/watcher.pid)   (checkpoints, then exits)"
+  echo "  pause:   just unplug; plugging back in resumes"
+else
+  echo "  stop:    kill -TERM \$(cat $run_dir/train.pid)   (checkpoints, then exits)"
+fi

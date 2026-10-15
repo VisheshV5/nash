@@ -67,13 +67,15 @@ uv run python scripts/plan_memory.py configs/hu_default.yaml
 ### On a laptop (macOS)
 
 ```bash
-scripts/run_background.sh configs/leduc.yaml     # tmux if installed, else nohup; wraps in caffeinate -is
+scripts/run_background.sh configs/leduc.yaml     # tmux if installed, else nohup
 uv run python scripts/status.py runs/leduc       # check in any time
 ```
 
-Keep the laptop plugged in (`caffeinate -s` only prevents sleep on AC power) and the lid open,
-or closed with an external display. The script always passes `--resume`, so after a reboot or
-crash just run it again. Install tmux (`brew install tmux`) to be able to reattach to the live
+On a Mac it **trains only while plugged in**: unplug and it checkpoints and pauses, plug back in
+and it resumes (`scripts/train_when_plugged.sh`; log in `runs/<name>/watcher.log`). Set
+`ALLOW_BATTERY=1` to train on battery anyway. Keep the lid open (closing it sleeps the Mac, which
+pauses training) and the vents clear. The script always resumes, so after a reboot or crash just
+run it again. Install tmux (`brew install tmux`) to be able to reattach to the live
 output with `tmux attach -t regret-leduc` (detach: Ctrl+B, then D).
 
 ### On a rented cloud server (Linux)
