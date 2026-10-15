@@ -281,6 +281,8 @@ The UI is **just another client of the REST API**, so it doubles as proof that e
 ### v1.2 — 6-max
 
 ### M10 — 6-max blueprint + multiway search (~1–1.5 weeks, +5–10 days compute)
+
+*Sizing measured with the memory planner (2026-10-15):* with D5's multiway sizes and 96/64/64 buckets the 6-max tree is 1.6B infosets (59 GB); even a very coarse version (preflop open + one re-raise, pot/all-in only with 3+ players, 32 buckets) is 329M infosets (12 GB worst case). The preflop tree alone is 44k–289k decision nodes. On the 16 GB laptop, v1.2 needs one or more of: 16-bit regrets (halves memory), ~16 buckets per street, or a rented high-memory machine for the training run. Decide before starting M10.
 **Deliverables**
 - `configs/6max_default.yaml` (D5/D6 coarse settings). Memory plan within 10 GB. Training run with the M2 harness. **The laptop is heavily loaded for the whole run.**
 - Virtual-fold mapping for 3–5-handed inputs (D2). Lift the `num_players > 2` restriction in the agent.
