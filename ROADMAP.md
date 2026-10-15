@@ -203,7 +203,7 @@ Built for 2–6 players even though v1 trains only heads-up.
 
 **Depends on:** M2, M3.
 
-### M5 — Depth-limited real-time search, heads-up (~5–7 days)
+### M5 — Depth-limited real-time search, heads-up (~5–7 days)  🔄 *river search done 2026-10-15; turn next*
 Search code is written for N players; v1 tests and tunes it heads-up only.
 
 **Deliverables**
@@ -212,13 +212,15 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 - Richer action set in search, with the actual off-tree bet inserted. Fine-grained hand buckets inside the subgame.
 - Anytime solver, 6 threads, 800 ms budget, blueprint fallback (D7).
 
+*As built (2026-10-15):* the river is re-solved exactly from the street's start with vector CFR+ over all 1,326 hole pairs (bet menu 33/50/75/100/150% pot, raises 50/100%, all-in, plus the real actions taken), from blueprint Bayesian ranges with a 2% uniform blend. Verified against the textbook polarized-bettor vs bluff-catcher equilibrium. The flop and turn use the blueprint for now; turn re-solving (river as a chance node) is next.
+
 **Acceptance**
-- **Blueprint + search beats blueprint-only** with 95% CI (AIVAT) over ≥ 200k duplicate hands. LBR improves over M4.
+- **Blueprint + search beats blueprint-only** with 95% CI. *(200k hands with a ~1 s search per river decision is weeks of laptop time; the target is revised to as many duplicate hands as a few hours allows, reported with its CI.)* LBR improves over M4.
 - p95 latency ≤ 1.0 s and max ≤ 1.5 s over 10k random HU decisions on the M2 Pro.
 
 **Depends on:** M4. (Can be developed while the M4 blueprint is still training, using mid-training checkpoints.)
 
-### M6 — Agent library + REST API (~2–3 days; thin version right after M4)
+### M6 — Agent library + REST API (~2–3 days; thin version right after M4)  ✅ *done 2026-10-14*
 **Deliverables**
 - `RegretAgent.load(path)` / `.act(state)`. Routes to blueprint, translation or solver. Returns the Spec §4 output.
 - `recommended` is **sampled** from the strategy (seeded in deterministic mode), with optional `mode="argmax"`.
@@ -230,7 +232,7 @@ Search code is written for N players; v1 tests and tunes it heads-up only.
 **Acceptance:** both examples run from a clean install. API validation tests pass. OpenAPI docs are generated.
 **Depends on:** M4 (thin), M5 (full routing).
 
-### M7 — Bundle, packaging, distribution (+ distillation only if needed) (~3–4 days; +3–4 days if distilling)
+### M7 — Bundle, packaging, distribution (+ distillation only if needed) (~3–4 days; +3–4 days if distilling)  🔄 *registry + release workflow done; first published release pending the trained bundle*
 **Deliverables**
 - **Prebuilt wheels** with `cibuildwheel` in a GitHub Actions release workflow (macOS-arm64, Linux x86_64 manylinux; Python 3.11–3.13), published to PyPI as `regret-poker` (import name `regret`).
 - **Bundle registry:** bundles attached to GitHub Releases, a small `registry.json` (name → URL, sha256, size, version), `RegretAgent.load(name_or_path)` downloads, verifies the checksum and caches in `~/.cache/regret`. Offline use works with a local path.

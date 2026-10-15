@@ -3,10 +3,43 @@
 An embeddable No-Limit Texas Hold'em agent: an MCCFR blueprint plus real-time search, small enough
 (≤ 100 MB) and fast enough (≤ 1 s per decision on a laptop CPU) to drop into your own code.
 
-> **Status: pre-alpha.** Done: rules engine (cards, evaluator, hand indexer, 2-6 player betting,
-> GameState validation), the MCCFR trainer with checkpoint/resume tooling (validated on Kuhn and
-> Leduc), and the card + action abstraction. Next: the heads-up blueprint.
-> See [ROADMAP.md](ROADMAP.md) for the plan and [SPEC.md](SPEC.md) for the requirements.
+> **Status: pre-alpha.** Done: rules engine, MCCFR trainer and tooling, card and action
+> abstraction, evaluation (baselines, duplicate matches, LBR), the agent library and REST API with
+> river re-solving, and bundle packaging. The v1 heads-up blueprint is training now.
+
+## Using the agent
+
+```python
+from regret import RegretAgent
+
+agent = RegretAgent.load("bundles/hu-100bb")   # a bundle directory, or a registered name
+decision = agent.act({
+    "num_players": 2, "hero_seat": "BB", "hero_cards": ["Ah", "Kh"], "street": "preflop",
+    "pot": 3.5,
+    "players": [{"seat": "BTN", "stack": 97.5, "status": "active"},
+                {"seat": "BB", "stack": 99.0, "status": "active"}],
+    "action_history": {"preflop": [["BTN", "raise", 2.5]]},
+    "to_act": "BB",
+})
+decision.strategy      # e.g. {"fold": 0.02, "call": 0.61, "raise_3.5x": 0.3, "all_in": 0.07}
+decision.recommended   # e.g. {"action": "call", "amount": 2.5}
+decision.source        # "blueprint", or "subgame_solve" on the river
+```
+
+`act(state, explain=True)` adds the numbers behind the decision (bucket, equity, how off-tree bets
+were translated, and on the river the solver's iterations and exploitability). `mode="argmax"`
+picks the most likely action instead of sampling; `seed` makes samples reproducible. The game
+state format and its validation rules are in [SPEC.md](SPEC.md) §4.
+
+REST API:
+
+```bash
+REGRET_BUNDLE=bundles/hu-100bb uv run uvicorn regret.api.app:app --port 8000
+curl -s localhost:8000/act -H 'content-type: application/json' -d @state.json
+```
+
+`POST /act` (query: `explain`, `mode`, `seed`), `GET /health`, `GET /info`; OpenAPI docs at
+`/docs`. Invalid states get a 422 listing each problem with its field.
 
 ## Development
 
