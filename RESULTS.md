@@ -115,6 +115,11 @@ mbb/hand over 8,000 hands (3,372 searches). Not significant. A first 1,000-hand 
 +209 ± 526. The solver's answers at that budget are within ~2.7% of the pot of the subgame's
 equilibrium. To re-measure on the mature blueprint, with the full budget and no training running.
 
+**Blueprint + river search vs blueprint alone, final blueprint, overnight** (10.73B bundle,
+800 ms budget on an otherwise idle machine, 826 ms per search; `scripts/search_benchmark.py`,
+2,000-hand duplicate chunks, run continuing): **+157 ± 103 mbb/hand over 24,000 hands**,
+significant. River search beats the blueprint alone.
+
 **Blueprint + turn and river search vs blueprint alone** (3.03B blueprint; the turn re-solved
 with one bet size plus all-in on each street, the river with the full search menu; 800 ms
 budget while training occupied the cores, 849 ms per search on average): -114 ± 369 mbb/hand
@@ -128,7 +133,7 @@ days of laptop time, so it waits for the training run to finish.
 | Criterion | Status |
 |---|---|
 | Beats every baseline bot with significance | Met: the 3.03B blueprint beats random, always-call and the equity-threshold bot, every CI excluding 0. 6-max moved to v1.2. |
-| Subgame solving measurably beats blueprint-only | Not yet shown: river search +57 ± 206, turn and river search -114 ± 369 mbb/hand. |
+| Subgame solving measurably beats blueprint-only | Met for river search: +157 ± 103 mbb/hand over 24,000 hands (final blueprint, idle machine). Turn search not shown (-114 ± 369 over 2,000). |
 | Size ≤ 100 MB, latency ≤ 1 s on a laptop CPU | Met: 43 MB bundle; blueprint decisions ≤ 2.4 ms, river search p95 849 ms with training running ([docs/compute.md](docs/compute.md)). |
 | Library and REST API usable from a ~10-line script | Met: [examples/library.py](examples/library.py), [examples/rest.py](examples/rest.py), 12 lines each with imports, both run in CI. |
 
