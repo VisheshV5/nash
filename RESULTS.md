@@ -117,7 +117,7 @@ equilibrium. To re-measure on the mature blueprint, with the full budget and no 
 
 **Blueprint + river search vs blueprint alone, final blueprint, overnight** (10.73B bundle,
 800 ms budget on an otherwise idle machine, 826 ms per search; `scripts/search_benchmark.py`,
-2,000-hand duplicate chunks, run continuing): **+151 ± 70 mbb/hand over 54,000 hands**,
+2,000-hand duplicate chunks, run continuing): **+120 ± 60 mbb/hand over 74,000 hands**,
 significant. River search beats the blueprint alone.
 
 **Blueprint + turn and river search vs blueprint alone** (3.03B blueprint; the turn re-solved
@@ -133,7 +133,7 @@ days of laptop time, so it waits for the training run to finish.
 | Criterion | Status |
 |---|---|
 | Beats every baseline bot with significance | Met: the 3.03B blueprint beats random, always-call and the equity-threshold bot, every CI excluding 0. 6-max moved to v1.2. |
-| Subgame solving measurably beats blueprint-only | Met for river search: +151 ± 70 mbb/hand over 54,000 hands (final blueprint, idle machine). Turn search not shown (-114 ± 369 over 2,000). |
+| Subgame solving measurably beats blueprint-only | Met for river search: +120 ± 60 mbb/hand over 74,000 hands (final blueprint, idle machine). Turn search not shown (-114 ± 369 over 2,000). |
 | Size ≤ 100 MB, latency ≤ 1 s on a laptop CPU | Met: 43 MB bundle; blueprint decisions ≤ 2.4 ms, river search p95 849 ms with training running ([docs/compute.md](docs/compute.md)). |
 | Library and REST API usable from a ~10-line script | Met: [examples/library.py](examples/library.py), [examples/rest.py](examples/rest.py), 12 lines each with imports, both run in CI. |
 
