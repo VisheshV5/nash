@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -126,7 +126,7 @@ def create_app(agent: RegretAgent | None = None) -> FastAPI:
 
     app.mount(
         "/demo",
-        StaticFiles(directory=Path(__file__).parent.parent / "demo" / "static", html=True),
+        _RevalidatedStatic(directory=Path(__file__).parent.parent / "demo" / "static", html=True),
         name="demo",
     )
 
@@ -147,6 +147,15 @@ def create_app(agent: RegretAgent | None = None) -> FastAPI:
         return decision.to_dict()
 
     return app
+
+
+class _RevalidatedStatic(StaticFiles):
+    """Static files that browsers re-check on every load, so an updated demo page shows up."""
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["cache-control"] = "no-cache"
+        return response
 
 
 app = create_app()

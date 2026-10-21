@@ -17,7 +17,7 @@ import numpy as np
 
 from regret import _core
 from regret.agent import RegretAgent
-from regret.engine.cards import card_str
+from regret.engine.cards import card_str, evaluate, hand_category
 from regret.engine.state import CHIPS_PER_BB
 from regret.eval.players import BASELINE_FACTORIES, Player
 
@@ -97,9 +97,12 @@ class Session:
     def _finish(self) -> None:
         pay = self.state.payoffs(self.hole, self.board)
         self.net_bb += _bb(pay[self.agent_seat])
+        showdown = self.state.is_showdown
         self.result = {
             "payoffs_bb": [_bb(p) for p in pay],
-            "showdown": self.state.is_showdown,
+            "showdown": showdown,
+            # Each seat's made hand at showdown, e.g. "two pair".
+            "hands": [_hand_name(h + self.board) for h in self.hole] if showdown else None,
             "board": [card_str(c) for c in self.board]
             if self.state.is_showdown
             else [card_str(c) for c in self.visible_board()],
@@ -129,6 +132,7 @@ class Session:
             {
                 "street": STREETS[int(self.state.street)],
                 "hole": [card_str(c) for c in self.hole[seat]],
+                "board": [card_str(c) for c in self.visible_board()],
                 **d.to_dict(),
             }
         )
@@ -180,7 +184,12 @@ class Session:
     def view(self) -> dict[str, Any]:
         s = self.state
         other = 1 - self.agent_seat
-        show_all = self.mode == "watch" or (self.result is not None and self.result["showdown"])
+        # Regret's cards: always in watch mode; in play mode at showdown, or face up and greyed
+        # out when it folds, so you can see what it gave up.
+        agent_folded = s.statuses[self.agent_seat] == _core.PlayerStatus.FOLDED
+        show_all = self.mode == "watch" or (
+            self.result is not None and (self.result["showdown"] or agent_folded)
+        )
         seats = []
         for seat in (0, 1):
             is_agent = seat == self.agent_seat
@@ -191,8 +200,11 @@ class Session:
                     if is_agent
                     else ("You" if self.mode == "play" else self.opponent),
                     "position": "BTN" if seat == s.button else "BB",
-                    "stack_bb": _bb(s.stacks[seat]),
-                    "bet_bb": _bb(s.bets[seat]),
+                    # Once the hand is over: what each player has after the pot is paid out.
+                    "stack_bb": round(_bb(self.stacks[seat]) + self.result["payoffs_bb"][seat], 2)
+                    if self.result
+                    else _bb(s.stacks[seat]),
+                    "bet_bb": 0.0 if self.result else _bb(s.bets[seat]),
                     "status": str(s.statuses[seat]).split(".")[-1].lower(),
                     "cards": [card_str(c) for c in self.hole[seat]]
                     if (not is_agent or show_all)
@@ -208,14 +220,20 @@ class Session:
                 "can_raise": la.bet_raise,
                 "min_raise_to_bb": _bb(la.min_raise_to),
                 "max_raise_to_bb": _bb(la.max_raise_to),
-                "pot_bb": _bb(s.pot),
+                # Once the hand is over, the pot that was actually won (an uncalled bet goes back).
+                "pot_bb": round(2 * max(self.result["payoffs_bb"]), 2)
+                if self.result and max(self.result["payoffs_bb"]) > 0
+                else _bb(s.pot),
                 "current_bet_bb": _bb(s.current_bet),
             }
         return {
             "mode": self.mode,
             "hand": self.hands,
             "street": STREETS[int(s.street)],
-            "pot_bb": _bb(s.pot),
+            # Once the hand is over, the pot that was actually won (an uncalled bet goes back).
+            "pot_bb": round(2 * max(self.result["payoffs_bb"]), 2)
+            if self.result and max(self.result["payoffs_bb"]) > 0
+            else _bb(s.pot),
             "board": [card_str(c) for c in self.visible_board()],
             "seats": seats,
             "to_act": None if s.is_terminal else s.to_act,
@@ -229,6 +247,10 @@ class Session:
             "result": self.result,
             "agent_net_bb": round(self.net_bb, 2),
         }
+
+
+def _hand_name(cards: list[int]) -> str:
+    return hand_category(evaluate(cards)).name.lower().replace("_", " ")
 
 
 def _describe(action: _core.Action, la: _core.LegalActions) -> str:

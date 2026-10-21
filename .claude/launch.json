@@ -4,7 +4,7 @@
     {
       "name": "demo",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["scripts/demo.sh", "bundles/hu-smoke", "8765"],
+      "runtimeArgs": ["scripts/demo.sh", "bundles/hu-100bb", "8765"],
       "port": 8765
     }
   ]

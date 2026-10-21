@@ -102,9 +102,69 @@ def test_errors(client: TestClient) -> None:
         assert bad.status_code == 422
 
 
+def test_showdowns_name_both_hands(client: TestClient) -> None:
+    s = client.post("/demo/api/sessions", json={"mode": "watch", "seed": 2}).json()
+    for _ in range(400):
+        if s["result"] and s["result"]["showdown"]:
+            hands = s["result"]["hands"]
+            assert len(hands) == 2
+            assert all(
+                h
+                in {
+                    "high card",
+                    "pair",
+                    "two pair",
+                    "three of a kind",
+                    "straight",
+                    "flush",
+                    "full house",
+                    "four of a kind",
+                    "straight flush",
+                }
+                for h in hands
+            )
+            assert all(
+                len(d["board"]) == {"preflop": 0, "flop": 3, "turn": 4, "river": 5}[d["street"]]
+                for d in s["decisions"]
+            )
+            return
+        path = "next" if s["result"] else "step"
+        s = client.post(f"/demo/api/sessions/{s['id']}/{path}").json()
+    raise AssertionError("no showdown in 400 steps")
+
+
+def test_regret_shows_its_cards_when_it_folds_but_not_when_you_fold(client: TestClient) -> None:
+    s = client.post("/demo/api/sessions", json={"mode": "play", "seed": 5}).json()
+    seen = {"regret folded": False, "you folded": False}
+    for _ in range(300):
+        if s["result"]:
+            agent = s["seats"][s["agent_seat"]]
+            you = s["seats"][1 - s["agent_seat"]]
+            if agent["status"] == "folded":
+                assert agent["cards"] is not None
+                seen["regret folded"] = True
+            elif you["status"] == "folded":
+                assert agent["cards"] is None
+                seen["you folded"] = True
+            if all(seen.values()):
+                return
+            s = client.post(f"/demo/api/sessions/{s['id']}/next").json()
+            continue
+        legal = s["legal"]
+        # Alternate: shove (Regret often folds) on odd hands, fold on even ones.
+        if s["hand"] % 2 and legal["can_raise"]:
+            body = {"kind": "all_in"}
+        elif s["hand"] % 2 == 0 and legal["fold"]:
+            body = {"kind": "fold"}
+        else:
+            body = {"kind": "call" if legal["call_bb"] else "check"}
+        s = client.post(f"/demo/api/sessions/{s['id']}/act", json=body).json()
+    raise AssertionError(f"didn't see both folds: {seen}")
+
+
 def test_static_page_is_served(client: TestClient) -> None:
     r = client.get("/demo/")
     assert r.status_code == 200
-    assert "Regret's thinking" in r.text
+    assert "Regret's reasoning" in r.text
     assert client.get("/demo/app.js").status_code == 200
     assert Path(__file__).parents[1].joinpath("src/regret/demo/static/style.css").exists()

@@ -14,50 +14,88 @@
       <button id="mode-play" role="tab" aria-selected="true">Play</button>
       <button id="mode-watch" role="tab" aria-selected="false">Watch</button>
     </div>
-    <div class="score"><span id="hand-no">Hand 1</span> · Regret <b id="net">+0</b> bb</div>
+    <div class="score">
+      <span id="hand-no">Hand 1</span>
+      <span class="net">Regret <b id="net">+0</b> bb</span>
+    </div>
   </header>
 
-  <main class="layout">
+  <main class="stage">
     <section class="table" aria-label="Table">
       <div class="seat top" id="seat-top"></div>
       <div class="felt">
-        <div class="pot" id="pot">Pot 1.5</div>
+        <div class="pot" id="pot">Pot 1.5 bb</div>
         <div class="board" id="board"></div>
         <div class="street" id="street">Preflop</div>
       </div>
       <div class="seat bottom" id="seat-bottom"></div>
 
-      <div class="controls" id="controls-play">
-        <div class="actions" id="actions"></div>
-        <div class="sizer" id="sizer" hidden>
-          <input type="range" id="size" min="0" max="100" step="0.5" aria-label="Bet size in big blinds">
-          <div class="presets" id="presets"></div>
+      <div class="dock">
+        <div class="controls" id="controls-play">
+          <div class="timer" id="timer" hidden>
+            <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+            <span class="timer-text" id="timer-text"></span>
+          </div>
+          <div class="actions" id="actions"></div>
+          <div class="sizer" id="sizer" hidden>
+            <input type="range" id="size" min="0" max="100" step="0.5" aria-label="Bet size in big blinds">
+            <div class="presets" id="presets"></div>
+          </div>
+        </div>
+        <div class="controls" id="controls-watch" hidden>
+          <label class="field">Opponent
+            <select id="opponent">
+              <option value="equity-threshold">Equity bot</option>
+              <option value="always-call">Always call</option>
+              <option value="random">Random</option>
+            </select>
+          </label>
+          <button id="step" class="primary">Next action</button>
+          <button id="auto">Auto-play</button>
+        </div>
+        <div class="result" id="result" hidden>
+          <div class="result-text">
+            <p class="result-title" id="result-title"></p>
+            <p class="result-detail" id="result-detail"></p>
+          </div>
+          <div class="result-actions">
+            <button class="ghost" id="result-why">Why did Regret play it that way?</button>
+            <button class="primary big" id="next">Next hand <kbd>Space</kbd></button>
+          </div>
         </div>
       </div>
-      <div class="controls" id="controls-watch" hidden>
-        <label>Opponent
-          <select id="opponent">
-            <option value="equity-threshold">Equity bot</option>
-            <option value="always-call">Always call</option>
-            <option value="random">Random</option>
-          </select>
-        </label>
-        <button id="step" class="primary">Next action</button>
-        <button id="auto">Auto-play</button>
-      </div>
-      <div class="result" id="result" hidden></div>
     </section>
 
-    <aside class="panel" aria-label="Regret's last decision">
-      <h2>Regret's thinking</h2>
-      <p class="hint" id="decision-empty">Regret's decisions appear here: what it could do, how often it does each, and the numbers behind it.</p>
-      <div id="decisions"></div>
-      <h2>Hand history</h2>
+    <div class="toolbar">
+      <button class="ghost" id="open-reasoning">Regret's reasoning <span class="badge" id="reasoning-count" hidden></span></button>
+      <label class="field small">Your clock
+        <select id="clock">
+          <option value="0">Off</option>
+          <option value="15">15 s</option>
+          <option value="30" selected>30 s</option>
+          <option value="60">60 s</option>
+        </select>
+      </label>
+    </div>
+
+    <details class="history">
+      <summary>Hand history</summary>
       <ol class="log" id="log"></ol>
-    </aside>
+    </details>
   </main>
   <p class="error" id="error" role="alert" hidden></p>
 </div>
+
+<dialog id="reasoning" aria-labelledby="reasoning-title">
+  <div class="sheet">
+    <header class="sheet-head">
+      <h2 id="reasoning-title">How Regret played this hand</h2>
+      <button class="icon" id="close-reasoning" aria-label="Close">✕</button>
+    </header>
+    <p class="hint" id="reasoning-empty"></p>
+    <ol class="steps" id="decisions"></ol>
+  </div>
+</dialog>
 <script src="app.js"></script>
 </body>
 </html>
