@@ -133,7 +133,7 @@ def test_showdowns_name_both_hands(client: TestClient) -> None:
     raise AssertionError("no showdown in 400 steps")
 
 
-def test_regret_shows_its_cards_when_it_folds_but_not_when_you_fold(client: TestClient) -> None:
+def test_regret_shows_its_cards_when_the_hand_ends_by_a_fold(client: TestClient) -> None:
     s = client.post("/demo/api/sessions", json={"mode": "play", "seed": 5}).json()
     seen = {"regret folded": False, "you folded": False}
     for _ in range(300):
@@ -144,7 +144,7 @@ def test_regret_shows_its_cards_when_it_folds_but_not_when_you_fold(client: Test
                 assert agent["cards"] is not None
                 seen["regret folded"] = True
             elif you["status"] == "folded":
-                assert agent["cards"] is None
+                assert agent["cards"] is not None
                 seen["you folded"] = True
             if all(seen.values()):
                 return

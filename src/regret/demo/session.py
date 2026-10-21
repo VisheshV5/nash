@@ -184,12 +184,9 @@ class Session:
     def view(self) -> dict[str, Any]:
         s = self.state
         other = 1 - self.agent_seat
-        # Regret's cards: always in watch mode; in play mode at showdown, or face up and greyed
-        # out when it folds, so you can see what it gave up.
-        agent_folded = s.statuses[self.agent_seat] == _core.PlayerStatus.FOLDED
-        show_all = self.mode == "watch" or (
-            self.result is not None and (self.result["showdown"] or agent_folded)
-        )
+        # Regret's cards: always in watch mode; in play mode once the hand is over, however it
+        # ended (greyed out by the client if Regret folded).
+        show_all = self.mode == "watch" or self.result is not None
         seats = []
         for seat in (0, 1):
             is_agent = seat == self.agent_seat
